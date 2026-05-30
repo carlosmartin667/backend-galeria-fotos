@@ -1,0 +1,17 @@
+@FotografiaApi_HostAddress = http://localhost:5200
+
+GET {{FotografiaApi_HostAddress}}/openapi/v1.json
+Accept: application/json
+
+###
+
+POST {{FotografiaApi_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "nombre": "Admin",
+  "email": "admin@example.com",
+  "password": "Cambiar123!"
+}
+
+###

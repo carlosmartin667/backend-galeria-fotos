@@ -1,0 +1,68 @@
+using Fotografia.Api.Data;
+using Fotografia.Api.DTOs.Descargas;
+using Fotografia.Api.Entities;
+using Fotografia.Api.Helpers;
+using Fotografia.Api.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
+
+namespace Fotografia.Api.Services;
+
+public sealed class DescargaService(AppDbContext dbContext, IStorageService storageService) : IDescargaService
+{
+    public async Task<ApiResponse<LinkDescargaResponseDto>> CreateDownloadLinkAsync(
+        CrearLinkDescargaRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var pedido = await dbContext.Pedidos
+            .Include(x => x.Pago)
+            .Include(x => x.PedidoFotos)
+            .ThenInclude(x => x.Foto)
+            .FirstOrDefaultAsync(x => x.Id == request.PedidoId, cancellationToken);
+
+        if (pedido is null)
+        {
+            return ApiResponse<LinkDescargaResponseDto>.Fail("Pedido no encontrado.");
+        }
+
+        if (!string.Equals(pedido.Estado, "Pagado", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(pedido.Pago?.Estado, "approved", StringComparison.OrdinalIgnoreCase))
+        {
+            return ApiResponse<LinkDescargaResponseDto>.Fail("El pedido debe estar pagado para descargar fotos.");
+        }
+
+        var pedidoFoto = pedido.PedidoFotos.FirstOrDefault(x => x.FotoId == request.FotoId);
+        if (pedidoFoto?.Foto is null)
+        {
+            return ApiResponse<LinkDescargaResponseDto>.Fail("La foto no pertenece al pedido.");
+        }
+
+        var signedUrl = await storageService.CreateTemporaryDownloadUrlAsync(
+            pedido.Id,
+            pedidoFoto.FotoId,
+            pedidoFoto.Foto.StorageKey,
+            pedidoFoto.Foto.NombreArchivo,
+            cancellationToken);
+
+        if (!signedUrl.Success || signedUrl.Data is null)
+        {
+            return signedUrl;
+        }
+
+        var descarga = new Descarga
+        {
+            PedidoId = pedido.Id,
+            EventoId = pedido.EventoId,
+            ClienteId = pedido.ClienteId,
+            FotoId = pedidoFoto.FotoId,
+            StorageKey = pedidoFoto.Foto.StorageKey,
+            NombreArchivo = pedidoFoto.Foto.NombreArchivo,
+            ExpiraEnUtc = signedUrl.Data.ExpiraEnUtc
+        };
+
+        dbContext.Descargas.Add(descarga);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        signedUrl.Data.DescargaId = descarga.Id;
+        return signedUrl;
+    }
+}
