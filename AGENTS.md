@@ -21,10 +21,15 @@ Guia para Codex y otros agentes que trabajen en este repositorio backend.
 ## Reglas de arquitectura
 
 - Los controllers deben permanecer delgados.
-- La logica de negocio va en `Services`.
+- La solucion esta dividida en capas:
+  - `Fotografia.Api`: host ASP.NET Core, controllers, Swagger, CORS y autenticacion HTTP.
+  - `Fotografia.Application`: DTOs, respuestas comunes, interfaces de servicios y mapeos.
+  - `Fotografia.Domain`: entidades del dominio.
+  - `Fotografia.Infrastructure`: EF Core, SQL Server, servicios concretos, Mercado Pago, Resend, Cloudflare R2 y JWT.
+- La logica de negocio va en servicios registrados desde `Fotografia.Infrastructure`.
 - Los contratos HTTP deben usar DTOs. No devolver entidades EF desde controllers.
 - Usar AutoMapper para mapear entidades a DTOs cuando corresponda.
-- Registrar dependencias por DI en `Program.cs` o extensiones claras.
+- Registrar dependencias por DI en extensiones claras como `AddApplication` y `AddInfrastructure`.
 - Mantener CORS preparado para un frontend Angular externo.
 
 ## Fotos y almacenamiento
@@ -50,7 +55,7 @@ Guia para Codex y otros agentes que trabajen en este repositorio backend.
 
 ## Convenciones de cambios
 
-- Mantener namespaces bajo `Fotografia.Api`.
+- Mantener namespaces bajo la capa correspondiente: `Fotografia.Api`, `Fotografia.Application`, `Fotografia.Domain` o `Fotografia.Infrastructure`.
 - Evitar refactors no relacionados con la tarea.
-- Agregar migraciones EF solo cuando el cambio de modelo lo requiera.
+- Agregar migraciones EF en `Fotografia.Infrastructure` solo cuando el cambio de modelo lo requiera.
 - Antes de cerrar una tarea, ejecutar `dotnet build` y, si existen tests, `dotnet test`.

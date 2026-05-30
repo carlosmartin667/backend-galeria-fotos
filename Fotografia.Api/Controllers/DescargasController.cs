@@ -1,5 +1,5 @@
-using Fotografia.Api.DTOs.Descargas;
-using Fotografia.Api.Services.Interfaces;
+using Fotografia.Application.DTOs.Descargas;
+using Fotografia.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

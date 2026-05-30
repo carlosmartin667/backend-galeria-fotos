@@ -1,12 +1,9 @@
 using System.Text;
-using Fotografia.Api.Data;
 using Fotografia.Api.Helpers;
-using Fotografia.Api.Mappings;
-using Fotografia.Api.Services;
-using Fotografia.Api.Services.Interfaces;
-using Fotografia.Api.Settings;
+using Fotografia.Application;
+using Fotografia.Infrastructure;
+using Fotografia.Infrastructure.Settings;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 
@@ -36,18 +33,8 @@ builder.Services.AddSwaggerGen(options =>
     options.OperationFilter<AuthorizeOperationFilter>();
 });
 builder.Services.AddProblemDetails();
-builder.Services.AddHttpClient();
-
-builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
-builder.Services.Configure<MercadoPagoSettings>(builder.Configuration.GetSection(MercadoPagoSettings.SectionName));
-builder.Services.Configure<ResendSettings>(builder.Configuration.GetSection(ResendSettings.SectionName));
-builder.Services.Configure<CloudflareR2Settings>(builder.Configuration.GetSection(CloudflareR2Settings.SectionName));
-
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection no esta configurado.");
-
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(connectionString));
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
     ?? throw new InvalidOperationException("La seccion Jwt no esta configurada.");
@@ -70,18 +57,6 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
-builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
-builder.Services.AddSingleton<JwtHelper>();
-
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IEventoService, EventoService>();
-builder.Services.AddScoped<IFotoService, FotoService>();
-builder.Services.AddScoped<IClienteService, ClienteService>();
-builder.Services.AddScoped<IPedidoService, PedidoService>();
-builder.Services.AddScoped<IMercadoPagoService, MercadoPagoService>();
-builder.Services.AddScoped<IDescargaService, DescargaService>();
-builder.Services.AddScoped<IStorageService, CloudflareR2StorageService>();
-builder.Services.AddScoped<IEmailService, EmailService>();
 
 builder.Services.AddCors(options =>
 {

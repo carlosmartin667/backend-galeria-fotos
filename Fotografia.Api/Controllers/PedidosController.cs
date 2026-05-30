@@ -1,5 +1,5 @@
-using Fotografia.Api.DTOs.Pedidos;
-using Fotografia.Api.Services.Interfaces;
+using Fotografia.Application.DTOs.Pedidos;
+using Fotografia.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
