@@ -2,6 +2,7 @@ using System.Text;
 using Fotografia.Api.Helpers;
 using Fotografia.Application;
 using Fotografia.Infrastructure;
+using Fotografia.Infrastructure.Data;
 using Fotografia.Infrastructure.Settings;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -75,6 +76,18 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
+    var databaseSettings = app.Configuration.GetSection(DatabaseSettings.SectionName).Get<DatabaseSettings>() ?? new DatabaseSettings();
+
+    if (databaseSettings.ApplyMigrationsOnStartup)
+    {
+        await DbInitializer.ApplyMigrationsAsync(app.Services);
+    }
+
+    if (databaseSettings.SeedTestData)
+    {
+        await DbInitializer.SeedTestDataAsync(app.Services);
+    }
+
     app.UseSwagger();
     app.UseSwaggerUI(options =>
     {

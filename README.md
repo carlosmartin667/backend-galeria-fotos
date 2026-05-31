@@ -19,6 +19,19 @@ dotnet run --project Fotografia.Api/Fotografia.Api.csproj
 
 La API levanta en `http://localhost:5200` y Swagger queda disponible en `http://localhost:5200/swagger`.
 
+## Datos de prueba
+
+En `Development`, la API aplica migraciones y carga datos de prueba cuando `Database:SeedTestData` esta en `true`.
+
+Usuario administrador de prueba:
+
+```text
+Email: carloscornejomoscoso@gmail.com
+Password: 12345678
+```
+
+El seed crea clientes, eventos, fotos como metadata de R2, pedidos, pagos y descargas de ejemplo. No guarda imagenes binarias en SQL Server.
+
 ## Base de datos
 
 La connection string local configurada apunta a SQL Server:

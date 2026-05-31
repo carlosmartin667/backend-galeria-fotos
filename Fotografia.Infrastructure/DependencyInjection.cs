@@ -17,6 +17,7 @@ public static class DependencyInjection
         services.Configure<MercadoPagoSettings>(configuration.GetSection(MercadoPagoSettings.SectionName));
         services.Configure<ResendSettings>(configuration.GetSection(ResendSettings.SectionName));
         services.Configure<CloudflareR2Settings>(configuration.GetSection(CloudflareR2Settings.SectionName));
+        services.Configure<DatabaseSettings>(configuration.GetSection(DatabaseSettings.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection no esta configurado.");
