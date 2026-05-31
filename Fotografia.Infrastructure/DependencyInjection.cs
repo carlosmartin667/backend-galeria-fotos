@@ -28,8 +28,11 @@ public static class DependencyInjection
                 sqlOptions => sqlOptions.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
 
         services.AddHttpClient();
+        services.AddHttpContextAccessor();
         services.AddSingleton<JwtHelper>();
 
+        services.AddScoped<IDatabaseInitializer, DatabaseInitializer>();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IEventoService, EventoService>();
         services.AddScoped<IFotoService, FotoService>();
@@ -37,6 +40,10 @@ public static class DependencyInjection
         services.AddScoped<IPedidoService, PedidoService>();
         services.AddScoped<IMercadoPagoService, MercadoPagoService>();
         services.AddScoped<IDescargaService, DescargaService>();
+        services.AddScoped<IAdminPerfilService, AdminPerfilService>();
+        services.AddScoped<IComentarioEventoService, ComentarioEventoService>();
+        services.AddScoped<IComentarioFotoService, ComentarioFotoService>();
+        services.AddScoped<IFavoritoService, FavoritoService>();
         services.AddScoped<IStorageService, CloudflareR2StorageService>();
         services.AddScoped<IEmailService, EmailService>();
 

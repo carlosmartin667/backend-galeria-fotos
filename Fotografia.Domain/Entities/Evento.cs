@@ -20,4 +20,6 @@ public sealed class Evento
     public ICollection<Foto> Fotos { get; set; } = [];
     public ICollection<Pedido> Pedidos { get; set; } = [];
     public ICollection<Descarga> Descargas { get; set; } = [];
+    public ICollection<ComentarioEvento> Comentarios { get; set; } = [];
+    public ICollection<EventoFavorito> Favoritos { get; set; } = [];
 }

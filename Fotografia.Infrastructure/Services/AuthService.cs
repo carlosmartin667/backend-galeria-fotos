@@ -3,6 +3,7 @@ using Fotografia.Infrastructure.Data;
 using Fotografia.Application.DTOs.Auth;
 using Fotografia.Domain.Entities;
 using Fotografia.Application.Helpers;
+using Fotografia.Application.Security;
 using Fotografia.Application.Services.Interfaces;
 using Fotografia.Infrastructure.Security;
 using Fotografia.Infrastructure.Settings;
@@ -34,11 +35,19 @@ public sealed class AuthService(
         {
             Nombre = request.Nombre.Trim(),
             Email = normalizedEmail,
-            PasswordHash = string.Empty
+            PasswordHash = string.Empty,
+            Rol = SistemaRoles.Usuario
         };
         usuario.PasswordHash = _passwordHasher.HashPassword(usuario, request.Password);
 
         dbContext.Usuarios.Add(usuario);
+        dbContext.Clientes.Add(new Cliente
+        {
+            Nombre = usuario.Nombre,
+            Email = usuario.Email,
+            Usuario = usuario
+        });
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return ApiResponse<AuthResponseDto>.Ok(CreateAuthResponse(usuario));

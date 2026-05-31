@@ -19,7 +19,8 @@ public sealed class MercadoPagoService(
     HttpClient httpClient,
     IOptions<MercadoPagoSettings> options,
     IMapper mapper,
-    ILogger<MercadoPagoService> logger) : IMercadoPagoService
+    ILogger<MercadoPagoService> logger,
+    ICurrentUserService currentUser) : IMercadoPagoService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly MercadoPagoSettings _settings = options.Value;
@@ -28,11 +29,6 @@ public sealed class MercadoPagoService(
         Guid pedidoId,
         CancellationToken cancellationToken = default)
     {
-        if (!IsConfigured())
-        {
-            return ApiResponse<MercadoPagoPreferenceResponseDto>.Fail("Mercado Pago no esta configurado.");
-        }
-
         var pedido = await dbContext.Pedidos
             .Include(x => x.Cliente)
             .Include(x => x.PedidoFotos)
@@ -41,7 +37,17 @@ public sealed class MercadoPagoService(
 
         if (pedido is null)
         {
-            return ApiResponse<MercadoPagoPreferenceResponseDto>.Fail("Pedido no encontrado.");
+            return ApiResponse<MercadoPagoPreferenceResponseDto>.NotFound("Pedido no encontrado.");
+        }
+
+        if (!currentUser.IsAdmin && pedido.Cliente?.UsuarioId != currentUser.UserId)
+        {
+            return ApiResponse<MercadoPagoPreferenceResponseDto>.Forbidden("No puede pagar pedidos de otro usuario.");
+        }
+
+        if (!IsConfigured())
+        {
+            return ApiResponse<MercadoPagoPreferenceResponseDto>.Fail("Mercado Pago no esta configurado.");
         }
 
         if (pedido.PedidoFotos.Count == 0)

@@ -7,6 +7,8 @@ public sealed class Cliente
     public required string Email { get; set; }
     public string? Telefono { get; set; }
     public string? Documento { get; set; }
+    public Guid? UsuarioId { get; set; }
+    public Usuario? Usuario { get; set; }
     public DateTime CreadoEnUtc { get; set; } = DateTime.UtcNow;
     public DateTime? ActualizadoEnUtc { get; set; }
 

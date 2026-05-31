@@ -1,4 +1,6 @@
+using Fotografia.Api.Helpers;
 using Fotografia.Application.DTOs.Pedidos;
+using Fotografia.Application.Security;
 using Fotografia.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -6,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Fotografia.Api.Controllers;
 
 [ApiController]
-[Authorize]
+[Authorize(Roles = SistemaRoles.AdminUsuario)]
 [Route("api/[controller]")]
 public sealed class PedidosController(IPedidoService pedidoService) : ControllerBase
 {
@@ -14,14 +16,14 @@ public sealed class PedidosController(IPedidoService pedidoService) : Controller
     public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
     {
         var result = await pedidoService.GetAllAsync(cancellationToken);
-        return Ok(result);
+        return this.ToActionResult(result);
     }
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
         var result = await pedidoService.GetByIdAsync(id, cancellationToken);
-        return result.Success ? Ok(result) : NotFound(result);
+        return this.ToActionResult(result);
     }
 
     [HttpPost]
@@ -30,6 +32,6 @@ public sealed class PedidosController(IPedidoService pedidoService) : Controller
         var result = await pedidoService.CreateAsync(request, cancellationToken);
         return result.Success
             ? CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result)
-            : BadRequest(result);
+            : this.ToActionResult(result);
     }
 }

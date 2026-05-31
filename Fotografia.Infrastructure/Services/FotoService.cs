@@ -26,7 +26,7 @@ public sealed class FotoService(AppDbContext dbContext, IMapper mapper, IStorage
         var foto = await dbContext.Fotos.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         return foto is null
-            ? ApiResponse<FotoResponseDto>.Fail("Foto no encontrada.")
+            ? ApiResponse<FotoResponseDto>.NotFound("Foto no encontrada.")
             : ApiResponse<FotoResponseDto>.Ok(mapper.Map<FotoResponseDto>(foto));
     }
 
@@ -35,7 +35,7 @@ public sealed class FotoService(AppDbContext dbContext, IMapper mapper, IStorage
         var eventoExists = await dbContext.Eventos.AnyAsync(x => x.Id == request.EventoId, cancellationToken);
         if (!eventoExists)
         {
-            return ApiResponse<FotoResponseDto>.Fail("Evento no encontrado.");
+            return ApiResponse<FotoResponseDto>.NotFound("Evento no encontrado.");
         }
 
         if (!FileHelper.IsSupportedImageContentType(request.ContentType))
@@ -55,7 +55,7 @@ public sealed class FotoService(AppDbContext dbContext, IMapper mapper, IStorage
         var foto = await dbContext.Fotos.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (foto is null)
         {
-            return ApiResponse<FotoResponseDto>.Fail("Foto no encontrada.");
+            return ApiResponse<FotoResponseDto>.NotFound("Foto no encontrada.");
         }
 
         foto.NombreArchivo = request.NombreArchivo.Trim();
@@ -79,7 +79,7 @@ public sealed class FotoService(AppDbContext dbContext, IMapper mapper, IStorage
         var foto = await dbContext.Fotos.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (foto is null)
         {
-            return ApiResponse<bool>.Fail("Foto no encontrada.");
+            return ApiResponse<bool>.NotFound("Foto no encontrada.");
         }
 
         dbContext.Fotos.Remove(foto);

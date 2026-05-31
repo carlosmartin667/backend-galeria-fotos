@@ -7,13 +7,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Fotografia.Infrastructure.Services;
 
-public sealed class DescargaService(AppDbContext dbContext, IStorageService storageService) : IDescargaService
+public sealed class DescargaService(
+    AppDbContext dbContext,
+    IStorageService storageService,
+    ICurrentUserService currentUser) : IDescargaService
 {
     public async Task<ApiResponse<LinkDescargaResponseDto>> CreateDownloadLinkAsync(
         CrearLinkDescargaRequestDto request,
         CancellationToken cancellationToken = default)
     {
         var pedido = await dbContext.Pedidos
+            .Include(x => x.Cliente)
             .Include(x => x.Pago)
             .Include(x => x.PedidoFotos)
             .ThenInclude(x => x.Foto)
@@ -21,7 +25,12 @@ public sealed class DescargaService(AppDbContext dbContext, IStorageService stor
 
         if (pedido is null)
         {
-            return ApiResponse<LinkDescargaResponseDto>.Fail("Pedido no encontrado.");
+            return ApiResponse<LinkDescargaResponseDto>.NotFound("Pedido no encontrado.");
+        }
+
+        if (!currentUser.IsAdmin && pedido.Cliente?.UsuarioId != currentUser.UserId)
+        {
+            return ApiResponse<LinkDescargaResponseDto>.Forbidden("No puede generar descargas de pedidos de otro usuario.");
         }
 
         if (!string.Equals(pedido.Estado, "Pagado", StringComparison.OrdinalIgnoreCase)

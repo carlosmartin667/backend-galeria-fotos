@@ -8,14 +8,23 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Fotografia.Infrastructure.Services;
 
-public sealed class PedidoService(AppDbContext dbContext, IMapper mapper) : IPedidoService
+public sealed class PedidoService(AppDbContext dbContext, IMapper mapper, ICurrentUserService currentUser) : IPedidoService
 {
     public async Task<ApiResponse<IReadOnlyCollection<PedidoResponseDto>>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var pedidos = await QueryPedidos()
-            .AsNoTracking()
-            .OrderByDescending(x => x.CreadoEnUtc)
-            .ToListAsync(cancellationToken);
+        var query = QueryPedidos().AsNoTracking();
+
+        if (!currentUser.IsAdmin)
+        {
+            if (currentUser.UserId is null)
+            {
+                return ApiResponse<IReadOnlyCollection<PedidoResponseDto>>.Forbidden("Debe iniciar sesion.");
+            }
+
+            query = query.Where(x => x.Cliente != null && x.Cliente.UsuarioId == currentUser.UserId.Value);
+        }
+
+        var pedidos = await query.OrderByDescending(x => x.CreadoEnUtc).ToListAsync(cancellationToken);
 
         return ApiResponse<IReadOnlyCollection<PedidoResponseDto>>.Ok(mapper.Map<List<PedidoResponseDto>>(pedidos));
     }
@@ -26,23 +35,36 @@ public sealed class PedidoService(AppDbContext dbContext, IMapper mapper) : IPed
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
-        return pedido is null
-            ? ApiResponse<PedidoResponseDto>.Fail("Pedido no encontrado.")
-            : ApiResponse<PedidoResponseDto>.Ok(mapper.Map<PedidoResponseDto>(pedido));
+        if (pedido is null)
+        {
+            return ApiResponse<PedidoResponseDto>.NotFound("Pedido no encontrado.");
+        }
+
+        if (!CanAccess(pedido))
+        {
+            return ApiResponse<PedidoResponseDto>.Forbidden("No puede consultar pedidos de otro usuario.");
+        }
+
+        return ApiResponse<PedidoResponseDto>.Ok(mapper.Map<PedidoResponseDto>(pedido));
     }
 
     public async Task<ApiResponse<PedidoResponseDto>> CreateAsync(CrearPedidoRequestDto request, CancellationToken cancellationToken = default)
     {
-        var clienteExists = await dbContext.Clientes.AnyAsync(x => x.Id == request.ClienteId, cancellationToken);
-        if (!clienteExists)
+        var cliente = await dbContext.Clientes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == request.ClienteId, cancellationToken);
+        if (cliente is null)
         {
-            return ApiResponse<PedidoResponseDto>.Fail("Cliente no encontrado.");
+            return ApiResponse<PedidoResponseDto>.NotFound("Cliente no encontrado.");
+        }
+
+        if (!currentUser.IsAdmin && cliente.UsuarioId != currentUser.UserId)
+        {
+            return ApiResponse<PedidoResponseDto>.Forbidden("No puede crear pedidos para otro cliente.");
         }
 
         var eventoExists = await dbContext.Eventos.AnyAsync(x => x.Id == request.EventoId, cancellationToken);
         if (!eventoExists)
         {
-            return ApiResponse<PedidoResponseDto>.Fail("Evento no encontrado.");
+            return ApiResponse<PedidoResponseDto>.NotFound("Evento no encontrado.");
         }
 
         var fotoIds = request.FotoIds.Distinct().ToList();
@@ -81,7 +103,13 @@ public sealed class PedidoService(AppDbContext dbContext, IMapper mapper) : IPed
     private IQueryable<Pedido> QueryPedidos()
     {
         return dbContext.Pedidos
+            .Include(x => x.Cliente)
             .Include(x => x.PedidoFotos)
             .ThenInclude(x => x.Foto);
+    }
+
+    private bool CanAccess(Pedido pedido)
+    {
+        return currentUser.IsAdmin || pedido.Cliente?.UsuarioId == currentUser.UserId;
     }
 }

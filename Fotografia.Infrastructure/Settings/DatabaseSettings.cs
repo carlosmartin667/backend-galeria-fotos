@@ -6,4 +6,6 @@ public sealed class DatabaseSettings
 
     public bool ApplyMigrationsOnStartup { get; set; }
     public bool SeedTestData { get; set; }
+    public bool ResetOnStartup { get; set; }
+    public bool SeedOnStartup { get; set; }
 }

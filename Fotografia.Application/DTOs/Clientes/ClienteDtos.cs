@@ -39,6 +39,7 @@ public sealed class ActualizarClienteRequestDto
 public sealed class ClienteResponseDto
 {
     public Guid Id { get; set; }
+    public Guid? UsuarioId { get; set; }
     public string Nombre { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? Telefono { get; set; }

@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Fotografia.Infrastructure.Services;
 
-public sealed class EventoService(AppDbContext dbContext, IMapper mapper) : IEventoService
+public sealed class EventoService(AppDbContext dbContext, IMapper mapper, ICurrentUserService currentUser) : IEventoService
 {
     public async Task<ApiResponse<IReadOnlyCollection<EventoResponseDto>>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -29,7 +29,7 @@ public sealed class EventoService(AppDbContext dbContext, IMapper mapper) : IEve
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         return evento is null
-            ? ApiResponse<EventoResponseDto>.Fail("Evento no encontrado.")
+            ? ApiResponse<EventoResponseDto>.NotFound("Evento no encontrado.")
             : ApiResponse<EventoResponseDto>.Ok(mapper.Map<EventoResponseDto>(evento));
     }
 
@@ -40,12 +40,13 @@ public sealed class EventoService(AppDbContext dbContext, IMapper mapper) : IEve
             var clienteExists = await dbContext.Clientes.AnyAsync(x => x.Id == request.ClientePrincipalId, cancellationToken);
             if (!clienteExists)
             {
-                return ApiResponse<EventoResponseDto>.Fail("Cliente principal no encontrado.");
+                return ApiResponse<EventoResponseDto>.NotFound("Cliente principal no encontrado.");
             }
         }
 
         var evento = mapper.Map<Evento>(request);
         evento.Slug = await CreateUniqueSlugAsync(evento.Nombre, cancellationToken);
+        evento.CreadoPorUsuarioId = currentUser.UserId;
 
         dbContext.Eventos.Add(evento);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -58,7 +59,7 @@ public sealed class EventoService(AppDbContext dbContext, IMapper mapper) : IEve
         var evento = await dbContext.Eventos.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (evento is null)
         {
-            return ApiResponse<EventoResponseDto>.Fail("Evento no encontrado.");
+            return ApiResponse<EventoResponseDto>.NotFound("Evento no encontrado.");
         }
 
         if (request.ClientePrincipalId is not null)
@@ -66,7 +67,7 @@ public sealed class EventoService(AppDbContext dbContext, IMapper mapper) : IEve
             var clienteExists = await dbContext.Clientes.AnyAsync(x => x.Id == request.ClientePrincipalId, cancellationToken);
             if (!clienteExists)
             {
-                return ApiResponse<EventoResponseDto>.Fail("Cliente principal no encontrado.");
+                return ApiResponse<EventoResponseDto>.NotFound("Cliente principal no encontrado.");
             }
         }
 
@@ -93,7 +94,7 @@ public sealed class EventoService(AppDbContext dbContext, IMapper mapper) : IEve
         var evento = await dbContext.Eventos.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (evento is null)
         {
-            return ApiResponse<bool>.Fail("Evento no encontrado.");
+            return ApiResponse<bool>.NotFound("Evento no encontrado.");
         }
 
         dbContext.Eventos.Remove(evento);

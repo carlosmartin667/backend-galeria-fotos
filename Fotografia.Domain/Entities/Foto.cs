@@ -19,4 +19,6 @@ public sealed class Foto
     public DateTime SubidaEnUtc { get; set; } = DateTime.UtcNow;
 
     public ICollection<PedidoFoto> PedidoFotos { get; set; } = [];
+    public ICollection<ComentarioFoto> Comentarios { get; set; } = [];
+    public ICollection<FotoFavorita> Favoritos { get; set; } = [];
 }
