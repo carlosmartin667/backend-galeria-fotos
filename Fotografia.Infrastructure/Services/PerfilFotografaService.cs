@@ -19,7 +19,7 @@ public sealed class PerfilFotografaService(
 
         return perfil is null
             ? ApiResponse<PerfilFotografaResponseDto>.NotFound("Perfil de fotografa no encontrado.")
-            : ApiResponse<PerfilFotografaResponseDto>.Ok(mapper.Map<PerfilFotografaResponseDto>(perfil));
+            : ApiResponse<PerfilFotografaResponseDto>.Ok(MapPerfil(perfil));
     }
 
     public async Task<ApiResponse<PerfilFotografaResponseDto>> GetAdminAsync(CancellationToken cancellationToken = default)
@@ -37,7 +37,7 @@ public sealed class PerfilFotografaService(
 
         return perfil is null
             ? ApiResponse<PerfilFotografaResponseDto>.NotFound("Perfil de fotografa no encontrado.")
-            : ApiResponse<PerfilFotografaResponseDto>.Ok(mapper.Map<PerfilFotografaResponseDto>(perfil));
+            : ApiResponse<PerfilFotografaResponseDto>.Ok(MapPerfil(perfil));
     }
 
     public async Task<ApiResponse<PerfilFotografaResponseDto>> UpdateAsync(
@@ -102,7 +102,7 @@ public sealed class PerfilFotografaService(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return ApiResponse<PerfilFotografaResponseDto>.Ok(
-            mapper.Map<PerfilFotografaResponseDto>(perfil),
+            MapPerfil(perfil),
             "Perfil de fotografa actualizado.");
     }
 
@@ -116,5 +116,12 @@ public sealed class PerfilFotografaService(
     private static string? Normalize(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private PerfilFotografaResponseDto MapPerfil(PerfilFotografa perfil)
+    {
+        var dto = mapper.Map<PerfilFotografaResponseDto>(perfil);
+        dto.WhatsAppUrl = WhatsAppHelper.CreateWhatsAppUrl(dto.WhatsApp);
+        return dto;
     }
 }

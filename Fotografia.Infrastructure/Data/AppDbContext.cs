@@ -19,6 +19,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<CarritoCompra> CarritosCompra => Set<CarritoCompra>();
     public DbSet<CarritoItem> CarritoItems => Set<CarritoItem>();
     public DbSet<PerfilFotografa> PerfilesFotografa => Set<PerfilFotografa>();
+    public DbSet<PortfolioItem> PortfolioItems => Set<PortfolioItem>();
+    public DbSet<ServicioFotografia> ServiciosFotografia => Set<ServicioFotografia>();
+    public DbSet<PreguntaFrecuente> PreguntasFrecuentes => Set<PreguntaFrecuente>();
     public DbSet<SesionPrivada> SesionesPrivadas => Set<SesionPrivada>();
     public DbSet<FotoPrivada> FotosPrivadas => Set<FotoPrivada>();
     public DbSet<ComentarioEvento> ComentariosEventos => Set<ComentarioEvento>();
@@ -85,6 +88,42 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithOne(x => x.Cliente)
                 .HasForeignKey<Cliente>(x => x.UsuarioId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<PortfolioItem>(entity =>
+        {
+            entity.ToTable("PortfolioItems");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Activo, x.Orden });
+            entity.Property(x => x.Titulo).HasMaxLength(180).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(1000);
+            entity.Property(x => x.ImagenUrl).HasMaxLength(1000);
+            entity.Property(x => x.Categoria).HasMaxLength(120);
+            entity.Property(x => x.Activo).HasDefaultValue(true);
+        });
+
+        modelBuilder.Entity<ServicioFotografia>(entity =>
+        {
+            entity.ToTable("ServiciosFotografia");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Activo, x.Orden });
+            entity.Property(x => x.Nombre).HasMaxLength(180).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(1200);
+            entity.Property(x => x.PrecioDesde).HasPrecision(18, 2);
+            entity.Property(x => x.DuracionEstimada).HasMaxLength(120);
+            entity.Property(x => x.ImagenUrl).HasMaxLength(1000);
+            entity.Property(x => x.Activo).HasDefaultValue(true);
+        });
+
+        modelBuilder.Entity<PreguntaFrecuente>(entity =>
+        {
+            entity.ToTable("PreguntasFrecuentes");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Activa, x.Orden });
+            entity.Property(x => x.Pregunta).HasMaxLength(220).IsRequired();
+            entity.Property(x => x.Respuesta).HasMaxLength(2000).IsRequired();
+            entity.Property(x => x.Categoria).HasMaxLength(120);
+            entity.Property(x => x.Activa).HasDefaultValue(true);
         });
 
         modelBuilder.Entity<Evento>(entity =>

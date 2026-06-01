@@ -544,6 +544,28 @@ public static class DbInitializer
         await UpsertPerfilFotografaAsync(dbContext, SeedIds.PerfilFotografaDemo, now, cancellationToken);
         await SaveSeedChangesAsync(dbContext, logger, "Seed: perfil fotografa", cancellationToken);
 
+        LogSeedBlock(logger, "Seed: sitio publico comercial");
+        await UpsertServicioFotografiaAsync(dbContext, SeedIds.ServicioCasamientos, "Casamientos", "Cobertura documental de ceremonia, recepcion y fiesta con entrega digital.", 180000m, "8 horas", 300, "https://placehold.co/900x600?text=Casamientos", 1, now, cancellationToken);
+        await UpsertServicioFotografiaAsync(dbContext, SeedIds.ServicioCumpleanos, "Cumpleanos y quince", "Fotografia social para cumpleanos, quince y celebraciones familiares.", 95000m, "4 horas", 180, "https://placehold.co/900x600?text=Cumpleanos", 2, now, cancellationToken);
+        await UpsertServicioFotografiaAsync(dbContext, SeedIds.ServicioBookPersonal, "Book personal", "Sesion personalizada en exterior o estudio con seleccion editada.", 55000m, "2 horas", 40, "https://placehold.co/900x600?text=Book+personal", 3, now, cancellationToken);
+        await UpsertServicioFotografiaAsync(dbContext, SeedIds.ServicioCorporativo, "Eventos corporativos", "Cobertura para conferencias, workshops y lanzamientos de marca.", 120000m, "5 horas", 200, "https://placehold.co/900x600?text=Corporativo", 4, now, cancellationToken);
+        await UpsertServicioFotografiaAsync(dbContext, SeedIds.ServicioProducto, "Fotografia de producto", "Imagenes limpias para catalogo, tienda online y redes sociales.", null, "A medida", null, "https://placehold.co/900x600?text=Producto", 5, now, cancellationToken);
+        await UpsertServicioFotografiaAsync(dbContext, SeedIds.ServicioSesionesPrivadas, "Sesiones privadas", "Galerias privadas con compra y descarga segura de fotos.", 65000m, "2 horas", 50, "https://placehold.co/900x600?text=Sesion+privada", 6, now, cancellationToken);
+
+        await UpsertPortfolioItemAsync(dbContext, SeedIds.PortfolioBodas, "Bodas documentales", "Momentos espontaneos de ceremonia y fiesta.", "https://placehold.co/900x600?text=Bodas", "Bodas", 1, true, now, cancellationToken);
+        await UpsertPortfolioItemAsync(dbContext, SeedIds.PortfolioQuince, "Quince y celebraciones", "Retratos y cobertura social para celebraciones familiares.", "https://placehold.co/900x600?text=Quince", "Social", 2, true, now, cancellationToken);
+        await UpsertPortfolioItemAsync(dbContext, SeedIds.PortfolioBooks, "Books personales", "Sesiones de retrato para marca personal y redes.", "https://placehold.co/900x600?text=Books", "Retrato", 3, true, now, cancellationToken);
+        await UpsertPortfolioItemAsync(dbContext, SeedIds.PortfolioCorporativo, "Cobertura corporativa", "Imagenes profesionales para empresas y workshops.", "https://placehold.co/900x600?text=Corporativo", "Corporativo", 4, false, now, cancellationToken);
+        await UpsertPortfolioItemAsync(dbContext, SeedIds.PortfolioProducto, "Producto y catalogo", "Fotos claras para ecommerce, menus y redes sociales.", "https://placehold.co/900x600?text=Producto", "Producto", 5, false, now, cancellationToken);
+        await UpsertPortfolioItemAsync(dbContext, SeedIds.PortfolioFamilia, "Familias y sesiones privadas", "Galerias intimas con seleccion y entrega cuidada.", "https://placehold.co/900x600?text=Familia", "Familia", 6, false, now, cancellationToken);
+
+        await UpsertPreguntaFrecuenteAsync(dbContext, SeedIds.FaqEntrega, "Como se entregan las fotos?", "Las fotos se entregan en galeria digital privada con previews y opciones de descarga seguras.", "Entrega", 1, now, cancellationToken);
+        await UpsertPreguntaFrecuenteAsync(dbContext, SeedIds.FaqReservas, "Como reservo una fecha?", "Podemos coordinar por WhatsApp o email publico para revisar disponibilidad y confirmar la reserva.", "Reservas", 2, now, cancellationToken);
+        await UpsertPreguntaFrecuenteAsync(dbContext, SeedIds.FaqPagos, "Que medios de pago aceptan?", "El sistema esta preparado para pagos online con Mercado Pago y seguimiento del pedido.", "Pagos", 3, now, cancellationToken);
+        await UpsertPreguntaFrecuenteAsync(dbContext, SeedIds.FaqPrivadas, "Las galerias privadas son seguras?", "Si. Cada cliente accede a sus sesiones privadas y descargas segun permisos y compras realizadas.", "Galerias", 4, now, cancellationToken);
+        await UpsertPreguntaFrecuenteAsync(dbContext, SeedIds.FaqEdicion, "Las fotos tienen edicion?", "Cada servicio define cantidad, seleccion y estilo de edicion antes de confirmar el trabajo.", "Servicios", 5, now, cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: sitio publico comercial", cancellationToken);
+
         LogSeedBlock(logger, "Seed: paquetes demo");
         await UpsertPaqueteEventoAsync(dbContext, SeedIds.PaqueteCasamientoCompleto, casamiento.Id, "Pack completo del evento", "Incluye todas las fotos activas del casamiento.", 18500m, true, now, cancellationToken);
         await UpsertPaqueteEventoAsync(dbContext, SeedIds.PaqueteCasamientoPremium, casamiento.Id, "Pack seleccion premium", "Pack demo para una seleccion curada.", 9500m, false, now, cancellationToken);
@@ -888,6 +910,110 @@ public static class DbInitializer
         perfil.TextoBienvenida = "Bienvenido a tu galeria de fotos.";
         perfil.Activa = true;
         perfil.FechaActualizacionUtc = now;
+    }
+
+    private static async Task UpsertServicioFotografiaAsync(
+        AppDbContext dbContext,
+        Guid id,
+        string nombre,
+        string descripcion,
+        decimal? precioDesde,
+        string? duracionEstimada,
+        int? cantidadFotosIncluidas,
+        string imagenUrl,
+        int orden,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var servicio = await dbContext.ServiciosFotografia.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (servicio is null)
+        {
+            servicio = new ServicioFotografia
+            {
+                Id = id,
+                Nombre = nombre,
+                FechaCreacionUtc = now
+            };
+
+            dbContext.ServiciosFotografia.Add(servicio);
+        }
+
+        servicio.Nombre = nombre;
+        servicio.Descripcion = descripcion;
+        servicio.PrecioDesde = precioDesde;
+        servicio.DuracionEstimada = duracionEstimada;
+        servicio.CantidadFotosIncluidas = cantidadFotosIncluidas;
+        servicio.ImagenUrl = imagenUrl;
+        servicio.Activo = true;
+        servicio.Orden = orden;
+        servicio.FechaActualizacionUtc = now;
+    }
+
+    private static async Task UpsertPortfolioItemAsync(
+        AppDbContext dbContext,
+        Guid id,
+        string titulo,
+        string descripcion,
+        string imagenUrl,
+        string categoria,
+        int orden,
+        bool destacado,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var item = await dbContext.PortfolioItems.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (item is null)
+        {
+            item = new PortfolioItem
+            {
+                Id = id,
+                Titulo = titulo,
+                FechaCreacionUtc = now
+            };
+
+            dbContext.PortfolioItems.Add(item);
+        }
+
+        item.Titulo = titulo;
+        item.Descripcion = descripcion;
+        item.ImagenUrl = imagenUrl;
+        item.Categoria = categoria;
+        item.Orden = orden;
+        item.Destacado = destacado;
+        item.Activo = true;
+        item.FechaActualizacionUtc = now;
+    }
+
+    private static async Task UpsertPreguntaFrecuenteAsync(
+        AppDbContext dbContext,
+        Guid id,
+        string preguntaTexto,
+        string respuesta,
+        string categoria,
+        int orden,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var pregunta = await dbContext.PreguntasFrecuentes.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (pregunta is null)
+        {
+            pregunta = new PreguntaFrecuente
+            {
+                Id = id,
+                Pregunta = preguntaTexto,
+                Respuesta = respuesta,
+                FechaCreacionUtc = now
+            };
+
+            dbContext.PreguntasFrecuentes.Add(pregunta);
+        }
+
+        pregunta.Pregunta = preguntaTexto;
+        pregunta.Respuesta = respuesta;
+        pregunta.Categoria = categoria;
+        pregunta.Orden = orden;
+        pregunta.Activa = true;
+        pregunta.FechaActualizacionUtc = now;
     }
 
     private static async Task UpsertPaqueteEventoAsync(
@@ -1475,6 +1601,23 @@ public static class DbInitializer
         public static readonly Guid FavoritoEventoAdmin = Guid.Parse("90000000-0000-0000-0000-000000000104");
         public static readonly Guid FavoritoFotoAdmin = Guid.Parse("90000000-0000-0000-0000-000000000105");
         public static readonly Guid PerfilFotografaDemo = Guid.Parse("a0000000-0000-0000-0000-000000000101");
+        public static readonly Guid PortfolioBodas = Guid.Parse("e1000000-0000-0000-0000-000000000101");
+        public static readonly Guid PortfolioQuince = Guid.Parse("e1000000-0000-0000-0000-000000000102");
+        public static readonly Guid PortfolioBooks = Guid.Parse("e1000000-0000-0000-0000-000000000103");
+        public static readonly Guid PortfolioCorporativo = Guid.Parse("e1000000-0000-0000-0000-000000000104");
+        public static readonly Guid PortfolioProducto = Guid.Parse("e1000000-0000-0000-0000-000000000105");
+        public static readonly Guid PortfolioFamilia = Guid.Parse("e1000000-0000-0000-0000-000000000106");
+        public static readonly Guid ServicioCasamientos = Guid.Parse("e2000000-0000-0000-0000-000000000101");
+        public static readonly Guid ServicioCumpleanos = Guid.Parse("e2000000-0000-0000-0000-000000000102");
+        public static readonly Guid ServicioBookPersonal = Guid.Parse("e2000000-0000-0000-0000-000000000103");
+        public static readonly Guid ServicioCorporativo = Guid.Parse("e2000000-0000-0000-0000-000000000104");
+        public static readonly Guid ServicioProducto = Guid.Parse("e2000000-0000-0000-0000-000000000105");
+        public static readonly Guid ServicioSesionesPrivadas = Guid.Parse("e2000000-0000-0000-0000-000000000106");
+        public static readonly Guid FaqEntrega = Guid.Parse("e3000000-0000-0000-0000-000000000101");
+        public static readonly Guid FaqReservas = Guid.Parse("e3000000-0000-0000-0000-000000000102");
+        public static readonly Guid FaqPagos = Guid.Parse("e3000000-0000-0000-0000-000000000103");
+        public static readonly Guid FaqPrivadas = Guid.Parse("e3000000-0000-0000-0000-000000000104");
+        public static readonly Guid FaqEdicion = Guid.Parse("e3000000-0000-0000-0000-000000000105");
         public static readonly Guid PaqueteCasamientoCompleto = Guid.Parse("b0000000-0000-0000-0000-000000000101");
         public static readonly Guid PaqueteCasamientoPremium = Guid.Parse("b0000000-0000-0000-0000-000000000102");
         public static readonly Guid PaqueteCumpleCompleto = Guid.Parse("b0000000-0000-0000-0000-000000000103");

@@ -1,4 +1,8 @@
 using System.ComponentModel.DataAnnotations;
+using Fotografia.Application.DTOs.Eventos;
+using Fotografia.Application.DTOs.Faq;
+using Fotografia.Application.DTOs.Portfolio;
+using Fotografia.Application.DTOs.Servicios;
 
 namespace Fotografia.Application.DTOs.Sitio;
 
@@ -10,6 +14,7 @@ public sealed class PerfilFotografaResponseDto
     public string? Descripcion { get; set; }
     public string? Biografia { get; set; }
     public string? WhatsApp { get; set; }
+    public string? WhatsAppUrl { get; set; }
     public string? Instagram { get; set; }
     public string? Facebook { get; set; }
     public string? TikTok { get; set; }
@@ -26,6 +31,31 @@ public sealed class PerfilFotografaResponseDto
     public bool Activa { get; set; }
     public DateTime FechaCreacionUtc { get; set; }
     public DateTime? FechaActualizacionUtc { get; set; }
+}
+
+public sealed class SitioHomeResponseDto
+{
+    public PerfilFotografaResponseDto? PerfilFotografa { get; set; }
+    public List<ServicioFotografiaResponseDto> Servicios { get; set; } = [];
+    public List<PortfolioItemResponseDto> Portfolio { get; set; } = [];
+    public List<PreguntaFrecuenteResponseDto> PreguntasFrecuentes { get; set; } = [];
+    public List<EventoResponseDto> EventosPublicosRecientes { get; set; } = [];
+}
+
+public sealed class SitioContactoResponseDto
+{
+    public PerfilFotografaResponseDto? PerfilFotografa { get; set; }
+    public string? WhatsAppUrl { get; set; }
+    public string? CorreoPublico { get; set; }
+    public string? Instagram { get; set; }
+    public string? Facebook { get; set; }
+    public string? TikTok { get; set; }
+    public string? SitioWeb { get; set; }
+    public string? Direccion { get; set; }
+    public string? Ciudad { get; set; }
+    public string? Provincia { get; set; }
+    public string? Pais { get; set; }
+    public string? TextoBienvenida { get; set; }
 }
 
 public sealed class ActualizarPerfilFotografaRequestDto

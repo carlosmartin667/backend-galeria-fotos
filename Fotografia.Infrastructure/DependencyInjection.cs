@@ -48,6 +48,10 @@ public static class DependencyInjection
         services.AddScoped<IAdminPerfilService, AdminPerfilService>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();
         services.AddScoped<IPerfilFotografaService, PerfilFotografaService>();
+        services.AddScoped<ISitioPublicoService, SitioPublicoService>();
+        services.AddScoped<IPortfolioService, PortfolioService>();
+        services.AddScoped<IServicioFotografiaService, ServicioFotografiaService>();
+        services.AddScoped<IFaqService, FaqService>();
         services.AddScoped<IPaqueteEventoService, PaqueteEventoService>();
         services.AddScoped<ICarritoService, CarritoService>();
         services.AddScoped<ISesionPrivadaService, SesionPrivadaService>();

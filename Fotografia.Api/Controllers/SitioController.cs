@@ -9,8 +9,26 @@ namespace Fotografia.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public sealed class SitioController(IPerfilFotografaService perfilFotografaService) : ControllerBase
+public sealed class SitioController(
+    IPerfilFotografaService perfilFotografaService,
+    ISitioPublicoService sitioPublicoService) : ControllerBase
 {
+    [HttpGet("home")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetHome(CancellationToken cancellationToken)
+    {
+        var result = await sitioPublicoService.GetHomeAsync(cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpGet("contacto")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetContacto(CancellationToken cancellationToken)
+    {
+        var result = await sitioPublicoService.GetContactoAsync(cancellationToken);
+        return this.ToActionResult(result);
+    }
+
     [HttpGet("perfil-fotografa")]
     [AllowAnonymous]
     public async Task<IActionResult> GetPerfilFotografa(CancellationToken cancellationToken)

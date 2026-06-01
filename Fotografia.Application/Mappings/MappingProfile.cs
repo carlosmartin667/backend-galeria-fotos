@@ -6,10 +6,13 @@ using Fotografia.Application.DTOs.Clientes;
 using Fotografia.Application.DTOs.Comentarios;
 using Fotografia.Application.DTOs.Eventos;
 using Fotografia.Application.DTOs.Favoritos;
+using Fotografia.Application.DTOs.Faq;
 using Fotografia.Application.DTOs.Fotos;
 using Fotografia.Application.DTOs.Paquetes;
 using Fotografia.Application.DTOs.Pagos;
 using Fotografia.Application.DTOs.Pedidos;
+using Fotografia.Application.DTOs.Portfolio;
+using Fotografia.Application.DTOs.Servicios;
 using Fotografia.Application.DTOs.SesionesPrivadas;
 using Fotografia.Application.DTOs.Sitio;
 using Fotografia.Domain.Constants;
@@ -77,6 +80,12 @@ public sealed class MappingProfile : Profile
 
         CreateMap<Pago, PagoResponseDto>();
         CreateMap<PerfilFotografa, PerfilFotografaResponseDto>();
+        CreateMap<PortfolioItem, PortfolioItemResponseDto>();
+        CreateMap<CrearPortfolioItemRequestDto, PortfolioItem>();
+        CreateMap<ServicioFotografia, ServicioFotografiaResponseDto>();
+        CreateMap<CrearServicioFotografiaRequestDto, ServicioFotografia>();
+        CreateMap<PreguntaFrecuente, PreguntaFrecuenteResponseDto>();
+        CreateMap<CrearPreguntaFrecuenteRequestDto, PreguntaFrecuente>();
 
         CreateMap<ComentarioEvento, ComentarioResponseDto>()
             .ForMember(dest => dest.NombreUsuario, opt => opt.MapFrom(src => src.Usuario == null ? string.Empty : src.Usuario.Nombre));
