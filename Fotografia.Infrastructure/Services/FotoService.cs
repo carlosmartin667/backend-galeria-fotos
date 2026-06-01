@@ -35,7 +35,10 @@ public sealed class FotoService(
             .OrderByDescending(x => x.SubidaEnUtc)
             .ToListAsync(cancellationToken);
 
-        return ApiResponse<IReadOnlyCollection<FotoResponseDto>>.Ok(mapper.Map<List<FotoResponseDto>>(fotos));
+        var response = mapper.Map<List<FotoResponseDto>>(fotos);
+        SanitizeStorageKeysForNonAdmin(response);
+
+        return ApiResponse<IReadOnlyCollection<FotoResponseDto>>.Ok(response);
     }
 
     public async Task<ApiResponse<PaginatedResponseDto<FotoResponseDto>>> GetByEventoPaginatedAsync(
@@ -62,9 +65,12 @@ public sealed class FotoService(
 
         var paginated = await query.ToPaginatedResponseAsync(pagination, cancellationToken);
 
+        var items = mapper.Map<List<FotoResponseDto>>(paginated.Items);
+        SanitizeStorageKeysForNonAdmin(items);
+
         return ApiResponse<PaginatedResponseDto<FotoResponseDto>>.Ok(new PaginatedResponseDto<FotoResponseDto>
         {
-            Items = mapper.Map<List<FotoResponseDto>>(paginated.Items),
+            Items = items,
             Page = paginated.Page,
             PageSize = paginated.PageSize,
             TotalItems = paginated.TotalItems,
@@ -88,7 +94,10 @@ public sealed class FotoService(
             return ApiResponse<FotoResponseDto>.NotFound("Foto no encontrada.");
         }
 
-        return ApiResponse<FotoResponseDto>.Ok(mapper.Map<FotoResponseDto>(foto));
+        var response = mapper.Map<FotoResponseDto>(foto);
+        SanitizeStorageKeyForNonAdmin(response);
+
+        return ApiResponse<FotoResponseDto>.Ok(response);
     }
 
     public async Task<ApiResponse<FotoResponseDto>> CreateMetadataAsync(CrearFotoMetadataRequestDto request, CancellationToken cancellationToken = default)
@@ -551,5 +560,26 @@ public sealed class FotoService(
     private static string CreatePexelsStorageKey(Guid eventoId, long pexelsId)
     {
         return $"demo/pexels/{eventoId}/pexels-{pexelsId}.jpg";
+    }
+
+    private void SanitizeStorageKeysForNonAdmin(IEnumerable<FotoResponseDto> fotos)
+    {
+        if (currentUser.IsAdmin)
+        {
+            return;
+        }
+
+        foreach (var foto in fotos)
+        {
+            foto.StorageKey = string.Empty;
+        }
+    }
+
+    private void SanitizeStorageKeyForNonAdmin(FotoResponseDto foto)
+    {
+        if (!currentUser.IsAdmin)
+        {
+            foto.StorageKey = string.Empty;
+        }
     }
 }

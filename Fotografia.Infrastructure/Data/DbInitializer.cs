@@ -353,10 +353,14 @@ public static class DbInitializer
 
         foreach (var descarga in descargas)
         {
-            if (!await dbContext.Descargas.AnyAsync(x => x.Id == descarga.Id, cancellationToken))
+            var existing = await dbContext.Descargas.FirstOrDefaultAsync(x => x.Id == descarga.Id, cancellationToken);
+            if (existing is null)
             {
                 dbContext.Descargas.Add(descarga);
+                continue;
             }
+
+            ApplySeedDescarga(existing, descarga);
         }
 
         await SaveSeedChangesAsync(dbContext, logger, "Seed: descargas demo", cancellationToken);
@@ -1052,7 +1056,7 @@ public static class DbInitializer
         CancellationToken cancellationToken)
     {
         var descarga = await dbContext.Descargas
-            .FirstOrDefaultAsync(x => x.PedidoId == pedido.Id && x.FotoId == foto.Id, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == id || (x.PedidoId == pedido.Id && x.FotoId == foto.Id), cancellationToken);
 
         if (descarga is null)
         {
@@ -1064,17 +1068,26 @@ public static class DbInitializer
                 ClienteId = clienteId,
                 FotoId = foto.Id,
                 StorageKey = foto.StorageKey,
-                NombreArchivo = foto.NombreArchivo
+                NombreArchivo = foto.NombreArchivo,
+                CreadoEnUtc = now
             };
 
             dbContext.Descargas.Add(descarga);
         }
 
+        descarga.PedidoId = pedido.Id;
+        descarga.EventoId = eventoId;
+        descarga.ClienteId = clienteId;
+        descarga.FotoId = foto.Id;
+        descarga.FotoPrivadaId = null;
         descarga.StorageKey = foto.StorageKey;
         descarga.NombreArchivo = foto.NombreArchivo;
-        descarga.ExpiraEnUtc = now.AddHours(24);
-        descarga.CreadoEnUtc = now;
+        descarga.ExpiraEnUtc = now.AddDays(7);
+        descarga.MaxDescargas = 5;
         descarga.DescargasRealizadas = 0;
+        descarga.UltimaDescargaUtc = null;
+        descarga.Activa = true;
+        descarga.FechaActualizacionUtc = now;
     }
 
     private static async Task UpsertComentarioEventoAsync(
@@ -1362,6 +1375,8 @@ public static class DbInitializer
         Guid fotoId,
         string nombreArchivo)
     {
+        var now = DateTime.UtcNow;
+
         return new Descarga
         {
             Id = id,
@@ -1371,10 +1386,31 @@ public static class DbInitializer
             FotoId = fotoId,
             StorageKey = $"eventos/{eventoId:N}/fotos/{nombreArchivo}",
             NombreArchivo = nombreArchivo,
-            ExpiraEnUtc = SeedClock.Now.AddHours(6),
-            CreadoEnUtc = SeedClock.Now.AddHours(-2),
-            DescargasRealizadas = 1
+            ExpiraEnUtc = now.AddDays(7),
+            CreadoEnUtc = now,
+            FechaActualizacionUtc = now,
+            MaxDescargas = 5,
+            DescargasRealizadas = 0,
+            UltimaDescargaUtc = null,
+            Activa = true
         };
+    }
+
+    private static void ApplySeedDescarga(Descarga target, Descarga source)
+    {
+        target.PedidoId = source.PedidoId;
+        target.EventoId = source.EventoId;
+        target.ClienteId = source.ClienteId;
+        target.FotoId = source.FotoId;
+        target.FotoPrivadaId = source.FotoPrivadaId;
+        target.StorageKey = source.StorageKey;
+        target.NombreArchivo = source.NombreArchivo;
+        target.ExpiraEnUtc = source.ExpiraEnUtc;
+        target.MaxDescargas = 5;
+        target.DescargasRealizadas = 0;
+        target.UltimaDescargaUtc = null;
+        target.Activa = true;
+        target.FechaActualizacionUtc = DateTime.UtcNow;
     }
 
     private static class SeedClock

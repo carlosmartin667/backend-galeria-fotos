@@ -169,8 +169,11 @@ public sealed class SesionPrivadaService(
             .OrderByDescending(x => x.FechaCreacionUtc)
             .ToListAsync(cancellationToken);
 
+        var response = mapper.Map<List<FotoPrivadaResponseDto>>(fotos);
+        SanitizeStorageKeysForNonAdmin(response);
+
         return ApiResponse<IReadOnlyCollection<FotoPrivadaResponseDto>>.Ok(
-            mapper.Map<List<FotoPrivadaResponseDto>>(fotos));
+            response);
     }
 
     public async Task<ApiResponse<StorageKeyResponseDto>> GenerateStorageKeyAsync(
@@ -324,5 +327,18 @@ public sealed class SesionPrivadaService(
     private static string? Normalize(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private void SanitizeStorageKeysForNonAdmin(IEnumerable<FotoPrivadaResponseDto> fotos)
+    {
+        if (currentUser.IsAdmin)
+        {
+            return;
+        }
+
+        foreach (var foto in fotos)
+        {
+            foto.StorageKey = string.Empty;
+        }
     }
 }

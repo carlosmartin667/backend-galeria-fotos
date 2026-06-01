@@ -29,7 +29,10 @@ public sealed class PedidoService(AppDbContext dbContext, IMapper mapper, ICurre
 
         var pedidos = await query.OrderByDescending(x => x.CreadoEnUtc).ToListAsync(cancellationToken);
 
-        return ApiResponse<IReadOnlyCollection<PedidoResponseDto>>.Ok(mapper.Map<List<PedidoResponseDto>>(pedidos));
+        var response = mapper.Map<List<PedidoResponseDto>>(pedidos);
+        SanitizeStorageKeysForNonAdmin(response);
+
+        return ApiResponse<IReadOnlyCollection<PedidoResponseDto>>.Ok(response);
     }
 
     public async Task<ApiResponse<PaginatedResponseDto<PedidoResponseDto>>> GetPaginatedAsync(
@@ -58,9 +61,12 @@ public sealed class PedidoService(AppDbContext dbContext, IMapper mapper, ICurre
             .OrderByDescending(x => x.CreadoEnUtc)
             .ToPaginatedResponseAsync(pagination, cancellationToken);
 
+        var items = mapper.Map<List<PedidoResponseDto>>(paginated.Items);
+        SanitizeStorageKeysForNonAdmin(items);
+
         return ApiResponse<PaginatedResponseDto<PedidoResponseDto>>.Ok(new PaginatedResponseDto<PedidoResponseDto>
         {
-            Items = mapper.Map<List<PedidoResponseDto>>(paginated.Items),
+            Items = items,
             Page = paginated.Page,
             PageSize = paginated.PageSize,
             TotalItems = paginated.TotalItems,
@@ -87,7 +93,10 @@ public sealed class PedidoService(AppDbContext dbContext, IMapper mapper, ICurre
             return ApiResponse<PedidoResponseDto>.Forbidden("No puede consultar pedidos de otro usuario.");
         }
 
-        return ApiResponse<PedidoResponseDto>.Ok(mapper.Map<PedidoResponseDto>(pedido));
+        var response = mapper.Map<PedidoResponseDto>(pedido);
+        SanitizeStorageKeysForNonAdmin(response);
+
+        return ApiResponse<PedidoResponseDto>.Ok(response);
     }
 
     public async Task<ApiResponse<PedidoResponseDto>> CreateAsync(CrearPedidoRequestDto request, CancellationToken cancellationToken = default)
@@ -149,7 +158,10 @@ public sealed class PedidoService(AppDbContext dbContext, IMapper mapper, ICurre
             .AsNoTracking()
             .FirstAsync(x => x.Id == pedido.Id, cancellationToken);
 
-        return ApiResponse<PedidoResponseDto>.Ok(mapper.Map<PedidoResponseDto>(created), "Pedido creado.");
+        var response = mapper.Map<PedidoResponseDto>(created);
+        SanitizeStorageKeysForNonAdmin(response);
+
+        return ApiResponse<PedidoResponseDto>.Ok(response, "Pedido creado.");
     }
 
     private IQueryable<Pedido> QueryPedidos()
@@ -169,5 +181,34 @@ public sealed class PedidoService(AppDbContext dbContext, IMapper mapper, ICurre
     private bool CanAccess(Pedido pedido)
     {
         return currentUser.IsAdmin || pedido.Cliente?.UsuarioId == currentUser.UserId;
+    }
+
+    private void SanitizeStorageKeysForNonAdmin(IEnumerable<PedidoResponseDto> pedidos)
+    {
+        if (currentUser.IsAdmin)
+        {
+            return;
+        }
+
+        foreach (var pedido in pedidos)
+        {
+            SanitizeStorageKeysForNonAdmin(pedido);
+        }
+    }
+
+    private void SanitizeStorageKeysForNonAdmin(PedidoResponseDto pedido)
+    {
+        if (currentUser.IsAdmin)
+        {
+            return;
+        }
+
+        foreach (var item in pedido.Fotos)
+        {
+            if (item.Foto is not null)
+            {
+                item.Foto.StorageKey = string.Empty;
+            }
+        }
     }
 }

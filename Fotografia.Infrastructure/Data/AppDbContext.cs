@@ -316,6 +316,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasKey(x => x.Id);
             entity.Property(x => x.StorageKey).HasMaxLength(700).IsRequired();
             entity.Property(x => x.NombreArchivo).HasMaxLength(260).IsRequired();
+            entity.Property(x => x.MaxDescargas).HasDefaultValue(5);
+            entity.Property(x => x.Activa).HasDefaultValue(true);
             entity.HasOne(x => x.Pedido)
                 .WithMany(x => x.Descargas)
                 .HasForeignKey(x => x.PedidoId)

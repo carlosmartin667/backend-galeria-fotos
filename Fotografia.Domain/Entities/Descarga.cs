@@ -22,5 +22,9 @@ public sealed class Descarga
     public required string NombreArchivo { get; set; }
     public DateTime ExpiraEnUtc { get; set; }
     public DateTime CreadoEnUtc { get; set; } = DateTime.UtcNow;
+    public DateTime? FechaActualizacionUtc { get; set; }
+    public int? MaxDescargas { get; set; } = 5;
     public int DescargasRealizadas { get; set; }
+    public DateTime? UltimaDescargaUtc { get; set; }
+    public bool Activa { get; set; } = true;
 }
