@@ -15,4 +15,6 @@ public sealed class Cliente
     public ICollection<Evento> EventosPrincipales { get; set; } = [];
     public ICollection<Pedido> Pedidos { get; set; } = [];
     public ICollection<Descarga> Descargas { get; set; } = [];
+    public ICollection<SesionPrivada> SesionesPrivadas { get; set; } = [];
+    public ICollection<FotoPrivada> FotosPrivadas { get; set; } = [];
 }

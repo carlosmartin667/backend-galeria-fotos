@@ -12,10 +12,25 @@ namespace Fotografia.Infrastructure.Services;
 public sealed class AdminPerfilService(
     AppDbContext dbContext,
     IMapper mapper,
-    ICurrentUserService currentUser) : IAdminPerfilService
+    ICurrentUserService currentUser,
+    IPerfilFotografaService perfilFotografaService) : IAdminPerfilService
 {
     public async Task<ApiResponse<AdminPerfilPublicoResponseDto>> GetPerfilPublicoAsync(CancellationToken cancellationToken = default)
     {
+        var perfilFotografa = await perfilFotografaService.GetPublicoAsync(cancellationToken);
+        if (perfilFotografa.Success && perfilFotografa.Data is not null)
+        {
+            return ApiResponse<AdminPerfilPublicoResponseDto>.Ok(new AdminPerfilPublicoResponseDto
+            {
+                Nombre = perfilFotografa.Data.Nombre,
+                Descripcion = perfilFotografa.Data.Descripcion,
+                WhatsApp = perfilFotografa.Data.WhatsApp,
+                Instagram = perfilFotografa.Data.Instagram,
+                CorreoPublico = perfilFotografa.Data.CorreoPublico,
+                Direccion = perfilFotografa.Data.Direccion
+            });
+        }
+
         var admin = await QueryAdmin()
             .AsNoTracking()
             .FirstOrDefaultAsync(cancellationToken);

@@ -3,7 +3,7 @@ namespace Fotografia.Domain.Entities;
 public sealed class Pedido
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid EventoId { get; set; }
+    public Guid? EventoId { get; set; }
     public Evento? Evento { get; set; }
 
     public Guid ClienteId { get; set; }
@@ -17,6 +17,7 @@ public sealed class Pedido
     public DateTime? ActualizadoEnUtc { get; set; }
 
     public ICollection<PedidoFoto> PedidoFotos { get; set; } = [];
+    public ICollection<PedidoItem> PedidoItems { get; set; } = [];
     public Pago? Pago { get; set; }
     public ICollection<Descarga> Descargas { get; set; } = [];
 }

@@ -23,10 +23,23 @@ public sealed class PedidoFotoResponseDto
     public FotoResponseDto? Foto { get; set; }
 }
 
+public sealed class PedidoItemResponseDto
+{
+    public Guid Id { get; set; }
+    public string TipoItem { get; set; } = string.Empty;
+    public Guid? FotoId { get; set; }
+    public Guid? PaqueteEventoId { get; set; }
+    public Guid? FotoPrivadaId { get; set; }
+    public string Descripcion { get; set; } = string.Empty;
+    public decimal PrecioUnitario { get; set; }
+    public int Cantidad { get; set; }
+    public decimal Subtotal { get; set; }
+}
+
 public sealed class PedidoResponseDto
 {
     public Guid Id { get; set; }
-    public Guid EventoId { get; set; }
+    public Guid? EventoId { get; set; }
     public Guid ClienteId { get; set; }
     public string Estado { get; set; } = string.Empty;
     public decimal Total { get; set; }
@@ -34,4 +47,5 @@ public sealed class PedidoResponseDto
     public string? MercadoPagoPreferenceId { get; set; }
     public DateTime CreadoEnUtc { get; set; }
     public List<PedidoFotoResponseDto> Fotos { get; set; } = [];
+    public List<PedidoItemResponseDto> Items { get; set; } = [];
 }

@@ -1,4 +1,5 @@
 using Fotografia.Domain.Entities;
+using Fotografia.Domain.Constants;
 using Microsoft.EntityFrameworkCore;
 
 namespace Fotografia.Infrastructure.Data;
@@ -9,10 +10,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<Evento> Eventos => Set<Evento>();
     public DbSet<Cliente> Clientes => Set<Cliente>();
     public DbSet<Foto> Fotos => Set<Foto>();
+    public DbSet<PaqueteEvento> PaquetesEvento => Set<PaqueteEvento>();
     public DbSet<Pedido> Pedidos => Set<Pedido>();
     public DbSet<PedidoFoto> PedidoFotos => Set<PedidoFoto>();
+    public DbSet<PedidoItem> PedidoItems => Set<PedidoItem>();
     public DbSet<Pago> Pagos => Set<Pago>();
     public DbSet<Descarga> Descargas => Set<Descarga>();
+    public DbSet<CarritoCompra> CarritosCompra => Set<CarritoCompra>();
+    public DbSet<CarritoItem> CarritoItems => Set<CarritoItem>();
+    public DbSet<PerfilFotografa> PerfilesFotografa => Set<PerfilFotografa>();
+    public DbSet<SesionPrivada> SesionesPrivadas => Set<SesionPrivada>();
+    public DbSet<FotoPrivada> FotosPrivadas => Set<FotoPrivada>();
     public DbSet<ComentarioEvento> ComentariosEventos => Set<ComentarioEvento>();
     public DbSet<ComentarioFoto> ComentariosFotos => Set<ComentarioFoto>();
     public DbSet<EventoFavorito> EventosFavoritos => Set<EventoFavorito>();
@@ -38,6 +46,31 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.Direccion).HasMaxLength(300);
         });
 
+        modelBuilder.Entity<PerfilFotografa>(entity =>
+        {
+            entity.ToTable("PerfilesFotografa");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.Activa).IsUnique().HasFilter("[Activa] = 1");
+            entity.Property(x => x.Nombre).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.Titulo).HasMaxLength(180);
+            entity.Property(x => x.Descripcion).HasMaxLength(1000);
+            entity.Property(x => x.Biografia).HasMaxLength(3000);
+            entity.Property(x => x.WhatsApp).HasMaxLength(64);
+            entity.Property(x => x.Instagram).HasMaxLength(120);
+            entity.Property(x => x.Facebook).HasMaxLength(120);
+            entity.Property(x => x.TikTok).HasMaxLength(120);
+            entity.Property(x => x.SitioWeb).HasMaxLength(300);
+            entity.Property(x => x.CorreoPublico).HasMaxLength(160);
+            entity.Property(x => x.Direccion).HasMaxLength(300);
+            entity.Property(x => x.Ciudad).HasMaxLength(120);
+            entity.Property(x => x.Provincia).HasMaxLength(120);
+            entity.Property(x => x.Pais).HasMaxLength(120);
+            entity.Property(x => x.FotoPerfilUrl).HasMaxLength(1000);
+            entity.Property(x => x.LogoUrl).HasMaxLength(1000);
+            entity.Property(x => x.BannerUrl).HasMaxLength(1000);
+            entity.Property(x => x.TextoBienvenida).HasMaxLength(1000);
+        });
+
         modelBuilder.Entity<Cliente>(entity =>
         {
             entity.ToTable("Clientes");
@@ -59,14 +92,22 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.ToTable("Eventos");
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.Slug).IsUnique();
+            entity.HasIndex(x => new { x.Activo, x.Estado, x.Visibilidad });
+            entity.HasIndex(x => x.PortadaFotoId);
             entity.Property(x => x.Nombre).HasMaxLength(180).IsRequired();
             entity.Property(x => x.Descripcion).HasMaxLength(1000);
             entity.Property(x => x.Slug).HasMaxLength(220).IsRequired();
-            entity.Property(x => x.Estado).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Estado).HasMaxLength(64).HasDefaultValue(EventoEstados.Publicado).IsRequired();
+            entity.Property(x => x.Visibilidad).HasMaxLength(64).HasDefaultValue(EventoVisibilidades.Publico).IsRequired();
+            entity.Property(x => x.Activo).HasDefaultValue(true);
             entity.HasOne(x => x.ClientePrincipal)
                 .WithMany(x => x.EventosPrincipales)
                 .HasForeignKey(x => x.ClientePrincipalId)
                 .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.PortadaFoto)
+                .WithMany()
+                .HasForeignKey(x => x.PortadaFotoId)
+                .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.CreadoPorUsuario)
                 .WithMany(x => x.EventosCreados)
                 .HasForeignKey(x => x.CreadoPorUsuarioId)
@@ -84,10 +125,113 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.PreviewUrl).HasMaxLength(1000);
             entity.Property(x => x.MarcaAguaStorageKey).HasMaxLength(700);
             entity.Property(x => x.PrecioUnitario).HasPrecision(18, 2);
+            entity.Property(x => x.TieneMarcaAgua).HasDefaultValue(false);
+            entity.Property(x => x.Procesada).HasDefaultValue(false);
             entity.HasOne(x => x.Evento)
                 .WithMany(x => x.Fotos)
                 .HasForeignKey(x => x.EventoId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PaqueteEvento>(entity =>
+        {
+            entity.ToTable("PaquetesEvento");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.EventoId);
+            entity.Property(x => x.Nombre).HasMaxLength(180).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(1000);
+            entity.Property(x => x.Precio).HasPrecision(18, 2);
+            entity.HasOne(x => x.Evento)
+                .WithMany(x => x.Paquetes)
+                .HasForeignKey(x => x.EventoId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SesionPrivada>(entity =>
+        {
+            entity.ToTable("SesionesPrivadas");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.ClienteId);
+            entity.Property(x => x.Titulo).HasMaxLength(180).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(1000);
+            entity.Property(x => x.Estado).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.PrecioPaquete).HasPrecision(18, 2);
+            entity.HasOne(x => x.Cliente)
+                .WithMany(x => x.SesionesPrivadas)
+                .HasForeignKey(x => x.ClienteId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<FotoPrivada>(entity =>
+        {
+            entity.ToTable("FotosPrivadas");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.SesionPrivadaId);
+            entity.HasIndex(x => x.ClienteId);
+            entity.HasIndex(x => new { x.SesionPrivadaId, x.StorageKey }).IsUnique();
+            entity.Property(x => x.NombreArchivo).HasMaxLength(260).IsRequired();
+            entity.Property(x => x.ContentType).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.StorageKey).HasMaxLength(700).IsRequired();
+            entity.Property(x => x.PreviewUrl).HasMaxLength(1000);
+            entity.Property(x => x.MarcaAguaStorageKey).HasMaxLength(700);
+            entity.Property(x => x.PrecioUnitario).HasPrecision(18, 2);
+            entity.HasOne(x => x.SesionPrivada)
+                .WithMany(x => x.Fotos)
+                .HasForeignKey(x => x.SesionPrivadaId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Cliente)
+                .WithMany(x => x.FotosPrivadas)
+                .HasForeignKey(x => x.ClienteId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CarritoCompra>(entity =>
+        {
+            entity.ToTable("CarritosCompra");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.UsuarioId, x.Estado })
+                .IsUnique()
+                .HasFilter("[Estado] = 'Activo'");
+            entity.Property(x => x.Estado).HasMaxLength(64).IsRequired();
+            entity.HasOne(x => x.Usuario)
+                .WithMany(x => x.CarritosCompra)
+                .HasForeignKey(x => x.UsuarioId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CarritoItem>(entity =>
+        {
+            entity.ToTable("CarritoItems");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.CarritoCompraId);
+            entity.HasIndex(x => new { x.CarritoCompraId, x.TipoItem, x.FotoId })
+                .IsUnique()
+                .HasFilter("[FotoId] IS NOT NULL");
+            entity.HasIndex(x => new { x.CarritoCompraId, x.TipoItem, x.PaqueteEventoId })
+                .IsUnique()
+                .HasFilter("[PaqueteEventoId] IS NOT NULL");
+            entity.HasIndex(x => new { x.CarritoCompraId, x.TipoItem, x.FotoPrivadaId })
+                .IsUnique()
+                .HasFilter("[FotoPrivadaId] IS NOT NULL");
+            entity.Property(x => x.TipoItem).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(300).IsRequired();
+            entity.Property(x => x.PrecioUnitario).HasPrecision(18, 2);
+            entity.HasOne(x => x.CarritoCompra)
+                .WithMany(x => x.Items)
+                .HasForeignKey(x => x.CarritoCompraId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Foto)
+                .WithMany(x => x.CarritoItems)
+                .HasForeignKey(x => x.FotoId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.PaqueteEvento)
+                .WithMany(x => x.CarritoItems)
+                .HasForeignKey(x => x.PaqueteEventoId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.FotoPrivada)
+                .WithMany(x => x.CarritoItems)
+                .HasForeignKey(x => x.FotoPrivadaId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Pedido>(entity =>
@@ -101,7 +245,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasOne(x => x.Evento)
                 .WithMany(x => x.Pedidos)
                 .HasForeignKey(x => x.EventoId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
             entity.HasOne(x => x.Cliente)
                 .WithMany(x => x.Pedidos)
                 .HasForeignKey(x => x.ClienteId)
@@ -121,6 +265,33 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany(x => x.PedidoFotos)
                 .HasForeignKey(x => x.FotoId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PedidoItem>(entity =>
+        {
+            entity.ToTable("PedidoItems");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.PedidoId);
+            entity.Property(x => x.TipoItem).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(300).IsRequired();
+            entity.Property(x => x.PrecioUnitario).HasPrecision(18, 2);
+            entity.Property(x => x.Subtotal).HasPrecision(18, 2);
+            entity.HasOne(x => x.Pedido)
+                .WithMany(x => x.PedidoItems)
+                .HasForeignKey(x => x.PedidoId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Foto)
+                .WithMany(x => x.PedidoItems)
+                .HasForeignKey(x => x.FotoId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.PaqueteEvento)
+                .WithMany(x => x.PedidoItems)
+                .HasForeignKey(x => x.PaqueteEventoId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.FotoPrivada)
+                .WithMany(x => x.PedidoItems)
+                .HasForeignKey(x => x.FotoPrivadaId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Pago>(entity =>
@@ -160,6 +331,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasOne(x => x.Foto)
                 .WithMany()
                 .HasForeignKey(x => x.FotoId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.FotoPrivada)
+                .WithMany()
+                .HasForeignKey(x => x.FotoPrivadaId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

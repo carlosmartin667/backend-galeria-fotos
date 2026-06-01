@@ -46,6 +46,11 @@ public static class DependencyInjection
         services.AddScoped<IMercadoPagoService, MercadoPagoService>();
         services.AddScoped<IDescargaService, DescargaService>();
         services.AddScoped<IAdminPerfilService, AdminPerfilService>();
+        services.AddScoped<IAdminDashboardService, AdminDashboardService>();
+        services.AddScoped<IPerfilFotografaService, PerfilFotografaService>();
+        services.AddScoped<IPaqueteEventoService, PaqueteEventoService>();
+        services.AddScoped<ICarritoService, CarritoService>();
+        services.AddScoped<ISesionPrivadaService, SesionPrivadaService>();
         services.AddScoped<IComentarioEventoService, ComentarioEventoService>();
         services.AddScoped<IComentarioFotoService, ComentarioFotoService>();
         services.AddScoped<IFavoritoService, FavoritoService>();

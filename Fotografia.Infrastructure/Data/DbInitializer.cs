@@ -1,8 +1,11 @@
 using Fotografia.Application.Security;
+using Fotografia.Domain.Constants;
 using Fotografia.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Fotografia.Infrastructure.Data;
 
@@ -26,13 +29,23 @@ public static class DbInitializer
     {
         await using var scope = serviceProvider.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await SeedTestDataAsync(dbContext, cancellationToken);
+        var logger = scope.ServiceProvider.GetService<ILoggerFactory>()?.CreateLogger("Fotografia.Infrastructure.Data.DbInitializer");
+        await SeedTestDataAsync(dbContext, logger, cancellationToken);
     }
 
     public static async Task SeedTestDataAsync(AppDbContext dbContext, CancellationToken cancellationToken = default)
     {
+        await SeedTestDataAsync(dbContext, logger: null, cancellationToken);
+    }
+
+    public static async Task SeedTestDataAsync(
+        AppDbContext dbContext,
+        ILogger? logger,
+        CancellationToken cancellationToken = default)
+    {
         var passwordHasher = new PasswordHasher<Usuario>();
 
+        LogSeedBlock(logger, "Seed: usuarios demo");
         var admin = await dbContext.Usuarios.FirstOrDefaultAsync(x => x.Email == AdminEmail, cancellationToken);
         if (admin is null)
         {
@@ -59,17 +72,19 @@ public static class DbInitializer
             admin.ActualizadoEnUtc = SeedClock.Now;
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: usuarios demo", cancellationToken);
 
-        await SeedClientesAsync(dbContext, cancellationToken);
-        await SeedEventosAsync(dbContext, admin.Id, cancellationToken);
-        await SeedFotosAsync(dbContext, cancellationToken);
-        await SeedPedidosAsync(dbContext, cancellationToken);
-        await SeedRequestedDemoDataAsync(dbContext, passwordHasher, cancellationToken);
+        await SeedClientesAsync(dbContext, logger, cancellationToken);
+        await SeedEventosAsync(dbContext, logger, admin.Id, cancellationToken);
+        await SeedFotosAsync(dbContext, logger, cancellationToken);
+        await SeedPortadasEventosAsync(dbContext, logger, cancellationToken);
+        await SeedPedidosAsync(dbContext, logger, cancellationToken);
+        await SeedRequestedDemoDataAsync(dbContext, passwordHasher, logger, cancellationToken);
     }
 
-    private static async Task SeedClientesAsync(AppDbContext dbContext, CancellationToken cancellationToken)
+    private static async Task SeedClientesAsync(AppDbContext dbContext, ILogger? logger, CancellationToken cancellationToken)
     {
+        LogSeedBlock(logger, "Seed: clientes demo");
         var clientes = new[]
         {
             new Cliente
@@ -109,11 +124,16 @@ public static class DbInitializer
             }
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: clientes demo", cancellationToken);
     }
 
-    private static async Task SeedEventosAsync(AppDbContext dbContext, Guid adminId, CancellationToken cancellationToken)
+    private static async Task SeedEventosAsync(
+        AppDbContext dbContext,
+        ILogger? logger,
+        Guid adminId,
+        CancellationToken cancellationToken)
     {
+        LogSeedBlock(logger, "Seed: eventos demo");
         var eventos = new[]
         {
             new Evento
@@ -123,7 +143,9 @@ public static class DbInitializer
                 Descripcion = "Ceremonia civil y fiesta en salon Las Acacias.",
                 Slug = "boda-sofia-y-lucas",
                 FechaEventoUtc = new DateTime(2026, 4, 18, 21, 0, 0, DateTimeKind.Utc),
-                Estado = "Activo",
+                Estado = EventoEstados.Publicado,
+                Visibilidad = EventoVisibilidades.Publico,
+                Activo = true,
                 ClientePrincipalId = SeedIds.ClienteSofia,
                 CreadoPorUsuarioId = adminId,
                 CreadoEnUtc = SeedClock.Now.AddDays(-30)
@@ -135,7 +157,9 @@ public static class DbInitializer
                 Descripcion = "Sesion previa, recepcion y pista.",
                 Slug = "quince-valentina",
                 FechaEventoUtc = new DateTime(2026, 5, 9, 22, 0, 0, DateTimeKind.Utc),
-                Estado = "Activo",
+                Estado = EventoEstados.Publicado,
+                Visibilidad = EventoVisibilidades.Publico,
+                Activo = true,
                 ClientePrincipalId = SeedIds.ClienteValentina,
                 CreadoPorUsuarioId = adminId,
                 CreadoEnUtc = SeedClock.Now.AddDays(-20)
@@ -147,7 +171,9 @@ public static class DbInitializer
                 Descripcion = "Retratos profesionales y cobertura del taller.",
                 Slug = "workshop-marca-personal",
                 FechaEventoUtc = new DateTime(2026, 5, 22, 18, 0, 0, DateTimeKind.Utc),
-                Estado = "Activo",
+                Estado = EventoEstados.Publicado,
+                Visibilidad = EventoVisibilidades.Publico,
+                Activo = true,
                 ClientePrincipalId = SeedIds.ClienteMateo,
                 CreadoPorUsuarioId = adminId,
                 CreadoEnUtc = SeedClock.Now.AddDays(-12)
@@ -156,17 +182,31 @@ public static class DbInitializer
 
         foreach (var evento in eventos)
         {
-            if (!await dbContext.Eventos.AnyAsync(x => x.Id == evento.Id, cancellationToken))
+            var existing = await dbContext.Eventos.FirstOrDefaultAsync(x => x.Id == evento.Id, cancellationToken);
+            if (existing is null)
             {
                 dbContext.Eventos.Add(evento);
+                continue;
             }
+
+            existing.Nombre = evento.Nombre;
+            existing.Descripcion = evento.Descripcion;
+            existing.Slug = evento.Slug;
+            existing.FechaEventoUtc = evento.FechaEventoUtc;
+            existing.Estado = evento.Estado;
+            existing.Visibilidad = evento.Visibilidad;
+            existing.Activo = evento.Activo;
+            existing.ClientePrincipalId = evento.ClientePrincipalId;
+            existing.CreadoPorUsuarioId = evento.CreadoPorUsuarioId;
+            existing.ActualizadoEnUtc = SeedClock.Now;
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: eventos demo", cancellationToken);
     }
 
-    private static async Task SeedFotosAsync(AppDbContext dbContext, CancellationToken cancellationToken)
+    private static async Task SeedFotosAsync(AppDbContext dbContext, ILogger? logger, CancellationToken cancellationToken)
     {
+        LogSeedBlock(logger, "Seed: fotos demo");
         var fotos = new[]
         {
             CreateFoto(SeedIds.FotoBoda01, SeedIds.EventoBoda, "boda-sofia-lucas-001.jpg", "image/jpeg", 6500m, 4892300, 4000, 6000),
@@ -183,17 +223,31 @@ public static class DbInitializer
 
         foreach (var foto in fotos)
         {
-            if (!await dbContext.Fotos.AnyAsync(x => x.Id == foto.Id, cancellationToken))
+            var existing = await dbContext.Fotos.FirstOrDefaultAsync(x => x.Id == foto.Id, cancellationToken);
+            if (existing is null)
             {
                 dbContext.Fotos.Add(foto);
+                continue;
             }
+
+            ApplySeedFoto(existing, foto);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: fotos demo", cancellationToken);
     }
 
-    private static async Task SeedPedidosAsync(AppDbContext dbContext, CancellationToken cancellationToken)
+    private static async Task SeedPortadasEventosAsync(AppDbContext dbContext, ILogger? logger, CancellationToken cancellationToken)
     {
+        LogSeedBlock(logger, "Seed: portadas de evento");
+        await SetPortadaAsync(dbContext, SeedIds.EventoBoda, SeedIds.FotoBoda01, cancellationToken);
+        await SetPortadaAsync(dbContext, SeedIds.EventoQuince, SeedIds.FotoQuince01, cancellationToken);
+        await SetPortadaAsync(dbContext, SeedIds.EventoCorporativo, SeedIds.FotoWorkshop01, cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: portadas de evento", cancellationToken);
+    }
+
+    private static async Task SeedPedidosAsync(AppDbContext dbContext, ILogger? logger, CancellationToken cancellationToken)
+    {
+        LogSeedBlock(logger, "Seed: pedidos demo");
         if (!await dbContext.Pedidos.AnyAsync(x => x.Id == SeedIds.PedidoBodaPagado, cancellationToken))
         {
             var pedido = new Pedido
@@ -282,13 +336,14 @@ public static class DbInitializer
             });
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: pedidos demo", cancellationToken);
 
-        await SeedDescargasAsync(dbContext, cancellationToken);
+        await SeedDescargasAsync(dbContext, logger, cancellationToken);
     }
 
-    private static async Task SeedDescargasAsync(AppDbContext dbContext, CancellationToken cancellationToken)
+    private static async Task SeedDescargasAsync(AppDbContext dbContext, ILogger? logger, CancellationToken cancellationToken)
     {
+        LogSeedBlock(logger, "Seed: descargas demo");
         var descargas = new[]
         {
             CreateDescarga(SeedIds.DescargaBoda01, SeedIds.PedidoBodaPagado, SeedIds.EventoBoda, SeedIds.ClienteSofia, SeedIds.FotoBoda01, "boda-sofia-lucas-001.jpg"),
@@ -304,16 +359,18 @@ public static class DbInitializer
             }
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: descargas demo", cancellationToken);
     }
 
     private static async Task SeedRequestedDemoDataAsync(
         AppDbContext dbContext,
         PasswordHasher<Usuario> passwordHasher,
+        ILogger? logger,
         CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
 
+        LogSeedBlock(logger, "Seed: usuarios demo solicitados");
         var admin = await UpsertUserAsync(
             dbContext,
             passwordHasher,
@@ -349,8 +406,9 @@ public static class DbInitializer
             SistemaRoles.Usuario,
             cancellationToken);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: usuarios demo solicitados", cancellationToken);
 
+        LogSeedBlock(logger, "Seed: clientes demo solicitados");
         var clienteDemo = await UpsertClienteAsync(
             dbContext,
             SeedIds.ClienteDemo,
@@ -371,8 +429,9 @@ public static class DbInitializer
             "30222333",
             cancellationToken);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: clientes demo solicitados", cancellationToken);
 
+        LogSeedBlock(logger, "Seed: eventos demo solicitados");
         var casamiento = await UpsertEventoAsync(
             dbContext,
             SeedIds.EventoCasamientoDemo,
@@ -380,7 +439,8 @@ public static class DbInitializer
             "Evento de casamiento con galeria privada para clientes.",
             "casamiento-demo",
             now.AddDays(10),
-            "Publicado",
+            EventoEstados.Publicado,
+            EventoVisibilidades.Publico,
             clienteDemo.Id,
             admin.Id,
             cancellationToken);
@@ -392,7 +452,8 @@ public static class DbInitializer
             "Evento social con fotos disponibles para seleccion y compra.",
             "cumpleanos-demo",
             now.AddDays(20),
-            "Publicado",
+            EventoEstados.Publicado,
+            EventoVisibilidades.Publico,
             clienteInvitado.Id,
             admin.Id,
             cancellationToken);
@@ -404,13 +465,15 @@ public static class DbInitializer
             "Sesion individual de prueba.",
             "book-fotografico-demo",
             now.AddDays(30),
-            "Borrador",
+            EventoEstados.Borrador,
+            EventoVisibilidades.Oculto,
             null,
             admin.Id,
             cancellationToken);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: eventos demo solicitados", cancellationToken);
 
+        LogSeedBlock(logger, "Seed: fotos demo solicitadas");
         var casamiento001 = await UpsertDemoFotoAsync(dbContext, SeedIds.FotoCasamiento001, casamiento.Id, "casamiento-001.jpg", now, cancellationToken);
         var casamiento002 = await UpsertDemoFotoAsync(dbContext, SeedIds.FotoCasamiento002, casamiento.Id, "casamiento-002.jpg", now, cancellationToken);
         await UpsertDemoFotoAsync(dbContext, SeedIds.FotoCasamiento003, casamiento.Id, "casamiento-003.jpg", now, cancellationToken);
@@ -422,8 +485,15 @@ public static class DbInitializer
         var book001 = await UpsertDemoFotoAsync(dbContext, SeedIds.FotoBook001, book.Id, "book-001.jpg", now, cancellationToken);
         await UpsertDemoFotoAsync(dbContext, SeedIds.FotoBook002, book.Id, "book-002.jpg", now, cancellationToken);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: fotos demo solicitadas", cancellationToken);
 
+        LogSeedBlock(logger, "Seed: portadas de evento solicitadas");
+        await SetPortadaAsync(dbContext, casamiento.Id, casamiento001.Id, cancellationToken);
+        await SetPortadaAsync(dbContext, cumpleanos.Id, cumpleanos001.Id, cancellationToken);
+        await SetPortadaAsync(dbContext, book.Id, book001.Id, cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: portadas de evento solicitadas", cancellationToken);
+
+        LogSeedBlock(logger, "Seed: pedidos demo solicitados");
         await UpsertPedidoAsync(
             dbContext,
             SeedIds.PedidoCasamientoPendiente,
@@ -446,11 +516,14 @@ public static class DbInitializer
             now,
             cancellationToken);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: pedidos demo solicitados", cancellationToken);
 
+        LogSeedBlock(logger, "Seed: pagos y descargas demo solicitados");
         await UpsertPagoAsync(dbContext, SeedIds.PagoCumpleanos, pedidoPagado, "Aprobado", "MP-DEMO-0001", "PREF-DEMO-0001", now, cancellationToken);
         await UpsertDescargaAsync(dbContext, SeedIds.DescargaCumpleanos001, pedidoPagado, clienteInvitado.Id, cumpleanos.Id, cumpleanos001, now, cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: pagos y descargas demo solicitados", cancellationToken);
 
+        LogSeedBlock(logger, "Seed: comentarios y favoritos demo");
         await UpsertComentarioEventoAsync(dbContext, SeedIds.ComentarioEventoAdmin, casamiento.Id, admin.Id, "Evento cargado correctamente. Galeria lista para revision.", now, cancellationToken);
         await UpsertComentarioEventoAsync(dbContext, SeedIds.ComentarioEventoCliente, casamiento.Id, usuarioCliente.Id, "Me gustaria marcar estas fotos como favoritas para revisarlas luego.", now, cancellationToken);
         await UpsertComentarioFotoAsync(dbContext, SeedIds.ComentarioFotoAdmin, casamiento001.Id, admin.Id, "Foto destacada para portada.", now, cancellationToken);
@@ -461,8 +534,35 @@ public static class DbInitializer
         await UpsertFotoFavoritaAsync(dbContext, SeedIds.FavoritoFotoCliente002, usuarioCliente.Id, casamiento002.Id, now, cancellationToken);
         await UpsertEventoFavoritoAsync(dbContext, SeedIds.FavoritoEventoAdmin, admin.Id, book.Id, now, cancellationToken);
         await UpsertFotoFavoritaAsync(dbContext, SeedIds.FavoritoFotoAdmin, admin.Id, book001.Id, now, cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: comentarios y favoritos demo", cancellationToken);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        LogSeedBlock(logger, "Seed: perfil fotografa");
+        await UpsertPerfilFotografaAsync(dbContext, SeedIds.PerfilFotografaDemo, now, cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: perfil fotografa", cancellationToken);
+
+        LogSeedBlock(logger, "Seed: paquetes demo");
+        await UpsertPaqueteEventoAsync(dbContext, SeedIds.PaqueteCasamientoCompleto, casamiento.Id, "Pack completo del evento", "Incluye todas las fotos activas del casamiento.", 18500m, true, now, cancellationToken);
+        await UpsertPaqueteEventoAsync(dbContext, SeedIds.PaqueteCasamientoPremium, casamiento.Id, "Pack seleccion premium", "Pack demo para una seleccion curada.", 9500m, false, now, cancellationToken);
+        await UpsertPaqueteEventoAsync(dbContext, SeedIds.PaqueteCumpleCompleto, cumpleanos.Id, "Pack completo cumpleanos", "Incluye todas las fotos activas del evento.", 14500m, true, now, cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: paquetes demo", cancellationToken);
+
+        LogSeedBlock(logger, "Seed: sesiones privadas");
+        var sesionPrivada = await UpsertSesionPrivadaAsync(
+            dbContext,
+            SeedIds.SesionPrivadaClienteDemo,
+            clienteDemo.Id,
+            "Sesion privada familiar",
+            "Galeria privada demo asociada al cliente.",
+            now.AddDays(-3),
+            now,
+            cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: sesiones privadas", cancellationToken);
+
+        LogSeedBlock(logger, "Seed: fotos privadas");
+        await UpsertFotoPrivadaAsync(dbContext, SeedIds.FotoPrivadaClienteDemo001, sesionPrivada.Id, clienteDemo.Id, "privada-familiar-001.jpg", 2200m, now, cancellationToken);
+        await UpsertFotoPrivadaAsync(dbContext, SeedIds.FotoPrivadaClienteDemo002, sesionPrivada.Id, clienteDemo.Id, "privada-familiar-002.jpg", 2200m, now, cancellationToken);
+
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: fotos privadas", cancellationToken);
     }
 
     private static async Task<Usuario> UpsertUserAsync(
@@ -559,6 +659,7 @@ public static class DbInitializer
         string slug,
         DateTime fechaEventoUtc,
         string estado,
+        string visibilidad,
         Guid? clientePrincipalId,
         Guid adminId,
         CancellationToken cancellationToken)
@@ -584,6 +685,8 @@ public static class DbInitializer
         evento.Slug = slug;
         evento.FechaEventoUtc = fechaEventoUtc;
         evento.Estado = estado;
+        evento.Visibilidad = visibilidad;
+        evento.Activo = estado != EventoEstados.Archivado;
         evento.ClientePrincipalId = clientePrincipalId;
         evento.CreadoPorUsuarioId = adminId;
         evento.ActualizadoEnUtc = DateTime.UtcNow;
@@ -626,8 +729,11 @@ public static class DbInitializer
         foto.Width = 3000;
         foto.Height = 2000;
         foto.PrecioUnitario = 1500m;
+        foto.TieneMarcaAgua = true;
+        foto.Procesada = true;
         foto.Activa = true;
         foto.SubidaEnUtc = now;
+        foto.FechaActualizacionUtc = now;
 
         return foto;
     }
@@ -643,9 +749,7 @@ public static class DbInitializer
         DateTime now,
         CancellationToken cancellationToken)
     {
-        var pedido = await dbContext.Pedidos
-            .Include(x => x.PedidoFotos)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        var pedido = await dbContext.Pedidos.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (pedido is null)
         {
@@ -667,17 +771,26 @@ public static class DbInitializer
         pedido.Total = fotos.Sum(x => x.PrecioUnitario);
         pedido.ActualizadoEnUtc = now;
 
+        var fotoIds = fotos.Select(x => x.Id).ToHashSet();
+        var pedidoFotos = await dbContext.PedidoFotos
+            .Where(x => x.PedidoId == id && fotoIds.Contains(x.FotoId))
+            .ToListAsync(cancellationToken);
+
         foreach (var foto in fotos)
         {
-            var item = pedido.PedidoFotos.FirstOrDefault(x => x.FotoId == foto.Id);
+            var item = pedidoFotos.FirstOrDefault(x => x.FotoId == foto.Id);
             if (item is null)
             {
-                pedido.PedidoFotos.Add(new PedidoFoto
+                item = new PedidoFoto
                 {
+                    PedidoId = id,
                     FotoId = foto.Id,
                     Cantidad = 1,
                     PrecioUnitario = foto.PrecioUnitario
-                });
+                };
+
+                dbContext.PedidoFotos.Add(item);
+                pedidoFotos.Add(item);
             }
             else
             {
@@ -686,7 +799,204 @@ public static class DbInitializer
             }
         }
 
+        var pedidoItems = await dbContext.PedidoItems
+            .Where(x => x.PedidoId == id && x.TipoItem == PedidoItemTipos.FotoEvento && x.FotoId != null && fotoIds.Contains(x.FotoId.Value))
+            .ToListAsync(cancellationToken);
+
+        foreach (var foto in fotos)
+        {
+            var item = pedidoItems.FirstOrDefault(x => x.FotoId == foto.Id);
+            if (item is null)
+            {
+                item = new PedidoItem
+                {
+                    PedidoId = id,
+                    TipoItem = PedidoItemTipos.FotoEvento,
+                    FotoId = foto.Id,
+                    Descripcion = foto.NombreArchivo,
+                    Cantidad = 1,
+                    PrecioUnitario = foto.PrecioUnitario,
+                    Subtotal = foto.PrecioUnitario,
+                    FechaCreacionUtc = now
+                };
+
+                dbContext.PedidoItems.Add(item);
+                pedidoItems.Add(item);
+            }
+            else
+            {
+                item.Descripcion = foto.NombreArchivo;
+                item.Cantidad = 1;
+                item.PrecioUnitario = foto.PrecioUnitario;
+                item.Subtotal = foto.PrecioUnitario;
+            }
+        }
+
         return pedido;
+    }
+
+    private static async Task UpsertPerfilFotografaAsync(
+        AppDbContext dbContext,
+        Guid id,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var perfil = await dbContext.PerfilesFotografa.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (perfil is null)
+        {
+            perfil = new PerfilFotografa
+            {
+                Id = id,
+                Nombre = "Carlos Cornejo Moscoso",
+                FechaCreacionUtc = now
+            };
+
+            dbContext.PerfilesFotografa.Add(perfil);
+        }
+
+        var otrosActivos = await dbContext.PerfilesFotografa
+            .Where(x => x.Id != id && x.Activa)
+            .ToListAsync(cancellationToken);
+
+        foreach (var otro in otrosActivos)
+        {
+            otro.Activa = false;
+            otro.FechaActualizacionUtc = now;
+        }
+
+        perfil.Nombre = "Carlos Cornejo Moscoso";
+        perfil.Titulo = "Fotografia social y eventos";
+        perfil.Descripcion = "Fotografa especializada en eventos sociales, books y sesiones privadas.";
+        perfil.Biografia = "Acompano cada historia con una mirada documental, cuidando la seleccion y entrega digital de cada galeria.";
+        perfil.WhatsApp = "+5493510000000";
+        perfil.Instagram = "@fotografia.demo";
+        perfil.Facebook = "fotografia.demo";
+        perfil.TikTok = "@fotografia.demo";
+        perfil.SitioWeb = "https://fotografia.example.com";
+        perfil.CorreoPublico = "contacto@fotografia.example.com";
+        perfil.Direccion = "Centro";
+        perfil.Ciudad = "Cordoba";
+        perfil.Provincia = "Cordoba";
+        perfil.Pais = "Argentina";
+        perfil.FotoPerfilUrl = "https://placehold.co/600x600?text=Fotografa";
+        perfil.LogoUrl = "https://placehold.co/400x160?text=Logo";
+        perfil.BannerUrl = "https://placehold.co/1400x500?text=Fotografia";
+        perfil.TextoBienvenida = "Bienvenido a tu galeria de fotos.";
+        perfil.Activa = true;
+        perfil.FechaActualizacionUtc = now;
+    }
+
+    private static async Task UpsertPaqueteEventoAsync(
+        AppDbContext dbContext,
+        Guid id,
+        Guid eventoId,
+        string nombre,
+        string descripcion,
+        decimal precio,
+        bool incluyeTodasLasFotos,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var paquete = await dbContext.PaquetesEvento.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (paquete is null)
+        {
+            paquete = new PaqueteEvento
+            {
+                Id = id,
+                EventoId = eventoId,
+                Nombre = nombre,
+                FechaCreacionUtc = now
+            };
+
+            dbContext.PaquetesEvento.Add(paquete);
+        }
+
+        paquete.EventoId = eventoId;
+        paquete.Nombre = nombre;
+        paquete.Descripcion = descripcion;
+        paquete.Precio = precio;
+        paquete.IncluyeTodasLasFotos = incluyeTodasLasFotos;
+        paquete.Activo = true;
+        paquete.FechaActualizacionUtc = now;
+    }
+
+    private static async Task<SesionPrivada> UpsertSesionPrivadaAsync(
+        AppDbContext dbContext,
+        Guid id,
+        Guid clienteId,
+        string titulo,
+        string descripcion,
+        DateTime fechaSesionUtc,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var sesion = await dbContext.SesionesPrivadas.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (sesion is null)
+        {
+            sesion = new SesionPrivada
+            {
+                Id = id,
+                ClienteId = clienteId,
+                Titulo = titulo,
+                FechaCreacionUtc = now
+            };
+
+            dbContext.SesionesPrivadas.Add(sesion);
+        }
+
+        sesion.ClienteId = clienteId;
+        sesion.Titulo = titulo;
+        sesion.Descripcion = descripcion;
+        sesion.FechaSesionUtc = fechaSesionUtc;
+        sesion.Estado = "Activa";
+        sesion.PrecioPaquete = 8500m;
+        sesion.Activa = true;
+        sesion.FechaActualizacionUtc = now;
+
+        return sesion;
+    }
+
+    private static async Task UpsertFotoPrivadaAsync(
+        AppDbContext dbContext,
+        Guid id,
+        Guid sesionPrivadaId,
+        Guid clienteId,
+        string nombreArchivo,
+        decimal precioUnitario,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var storageKey = $"privadas/{sesionPrivadaId:N}/fotos/{nombreArchivo}";
+        var foto = await dbContext.FotosPrivadas.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (foto is null)
+        {
+            foto = new FotoPrivada
+            {
+                Id = id,
+                SesionPrivadaId = sesionPrivadaId,
+                ClienteId = clienteId,
+                NombreArchivo = nombreArchivo,
+                ContentType = "image/jpeg",
+                StorageKey = storageKey,
+                FechaCreacionUtc = now
+            };
+
+            dbContext.FotosPrivadas.Add(foto);
+        }
+
+        foto.SesionPrivadaId = sesionPrivadaId;
+        foto.ClienteId = clienteId;
+        foto.NombreArchivo = nombreArchivo;
+        foto.ContentType = "image/jpeg";
+        foto.StorageKey = storageKey;
+        foto.PreviewUrl = $"https://placehold.co/600x400?text={nombreArchivo}";
+        foto.MarcaAguaStorageKey = $"privadas/{sesionPrivadaId:N}/watermarks/{nombreArchivo}";
+        foto.SizeInBytes = 4000000;
+        foto.Width = 3000;
+        foto.Height = 2000;
+        foto.PrecioUnitario = precioUnitario;
+        foto.Activa = true;
+        foto.FechaActualizacionUtc = now;
     }
 
     private static async Task UpsertPagoAsync(
@@ -699,6 +1009,12 @@ public static class DbInitializer
         DateTime now,
         CancellationToken cancellationToken)
     {
+        var trackedPedido = await dbContext.Pedidos.FirstOrDefaultAsync(x => x.Id == pedido.Id, cancellationToken);
+        if (trackedPedido is null)
+        {
+            return;
+        }
+
         var pago = await dbContext.Pagos.FirstOrDefaultAsync(x => x.PedidoId == pedido.Id || x.Id == id, cancellationToken);
 
         if (pago is null)
@@ -713,15 +1029,16 @@ public static class DbInitializer
             dbContext.Pagos.Add(pago);
         }
 
-        pago.PedidoId = pedido.Id;
+        pago.PedidoId = trackedPedido.Id;
         pago.Estado = estado;
-        pago.Monto = pedido.Total;
-        pago.Moneda = pedido.Moneda;
+        pago.Monto = trackedPedido.Total;
+        pago.Moneda = trackedPedido.Moneda;
         pago.MercadoPagoPaymentId = paymentId;
         pago.MercadoPagoPreferenceId = preferenceId;
         pago.PagadoEnUtc = now;
         pago.ActualizadoEnUtc = now;
-        pedido.MercadoPagoPreferenceId = preferenceId;
+        trackedPedido.MercadoPagoPreferenceId = preferenceId;
+        trackedPedido.ActualizadoEnUtc = now;
     }
 
     private static async Task UpsertDescargaAsync(
@@ -889,9 +1206,152 @@ public static class DbInitializer
             Width = width,
             Height = height,
             PrecioUnitario = precioUnitario,
+            TieneMarcaAgua = true,
+            Procesada = true,
             Activa = true,
             SubidaEnUtc = SeedClock.Now.AddDays(-10)
         };
+    }
+
+    private static void ApplySeedFoto(Foto target, Foto source)
+    {
+        target.EventoId = source.EventoId;
+        target.NombreArchivo = source.NombreArchivo;
+        target.ContentType = source.ContentType;
+        target.StorageKey = source.StorageKey;
+        target.PreviewUrl = source.PreviewUrl;
+        target.MarcaAguaStorageKey = source.MarcaAguaStorageKey;
+        target.SizeInBytes = source.SizeInBytes;
+        target.Width = source.Width;
+        target.Height = source.Height;
+        target.PrecioUnitario = source.PrecioUnitario;
+        target.TieneMarcaAgua = source.TieneMarcaAgua;
+        target.Procesada = source.Procesada;
+        target.Activa = source.Activa;
+        target.SubidaEnUtc = source.SubidaEnUtc;
+        target.FechaActualizacionUtc = SeedClock.Now;
+    }
+
+    private static async Task SetPortadaAsync(
+        AppDbContext dbContext,
+        Guid eventoId,
+        Guid fotoId,
+        CancellationToken cancellationToken)
+    {
+        var evento = await dbContext.Eventos.FirstOrDefaultAsync(x => x.Id == eventoId, cancellationToken);
+        if (evento is null)
+        {
+            return;
+        }
+
+        var fotoBelongsToEvento = await dbContext.Fotos.AnyAsync(
+            x => x.Id == fotoId && x.EventoId == eventoId && x.Activa,
+            cancellationToken);
+
+        if (!fotoBelongsToEvento)
+        {
+            return;
+        }
+
+        evento.PortadaFotoId = fotoId;
+        evento.ActualizadoEnUtc = SeedClock.Now;
+    }
+
+    private static void LogSeedBlock(ILogger? logger, string block)
+    {
+        logger?.LogInformation("{SeedBlock}", block);
+    }
+
+    private static async Task SaveSeedChangesAsync(
+        AppDbContext dbContext,
+        ILogger? logger,
+        string block,
+        CancellationToken cancellationToken)
+    {
+        var entries = dbContext.ChangeTracker.Entries()
+            .Where(x => x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .ToList();
+
+        var added = entries.Count(x => x.State == EntityState.Added);
+        var modified = entries.Count(x => x.State == EntityState.Modified);
+        var deleted = entries.Count(x => x.State == EntityState.Deleted);
+
+        logger?.LogInformation(
+            "{SeedBlock}: SaveChanges Added={Added} Modified={Modified} Deleted={Deleted}",
+            block,
+            added,
+            modified,
+            deleted);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            dbContext.ChangeTracker.Clear();
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            LogConcurrencyException(logger, block, ex);
+            throw;
+        }
+    }
+
+    private static void LogConcurrencyException(
+        ILogger? logger,
+        string block,
+        DbUpdateConcurrencyException exception)
+    {
+        if (logger is null)
+        {
+            return;
+        }
+
+        logger.LogError(
+            exception,
+            "{SeedBlock}: DbUpdateConcurrencyException durante seed. Entries={EntryCount}",
+            block,
+            exception.Entries.Count);
+
+        foreach (var entry in exception.Entries)
+        {
+            logger.LogError(
+                "{SeedBlock}: entidad={EntityType} estado={State} pk={PrimaryKey} valores={CurrentValues}",
+                block,
+                entry.Metadata.ClrType.Name,
+                entry.State,
+                FormatPrimaryKey(entry),
+                FormatCurrentValues(entry));
+        }
+    }
+
+    private static string FormatPrimaryKey(EntityEntry entry)
+    {
+        var key = entry.Metadata.FindPrimaryKey();
+        if (key is null)
+        {
+            return "<sin-pk>";
+        }
+
+        return string.Join(", ", key.Properties.Select(property =>
+        {
+            var value = entry.Property(property.Name).CurrentValue;
+            return $"{property.Name}={value}";
+        }));
+    }
+
+    private static string FormatCurrentValues(EntityEntry entry)
+    {
+        var values = entry.Properties
+            .Where(property => !IsSensitiveProperty(property.Metadata.Name))
+            .Select(property => $"{property.Metadata.Name}={property.CurrentValue}");
+
+        return string.Join(", ", values);
+    }
+
+    private static bool IsSensitiveProperty(string propertyName)
+    {
+        return propertyName.Contains("Password", StringComparison.OrdinalIgnoreCase)
+            || propertyName.Contains("Token", StringComparison.OrdinalIgnoreCase)
+            || propertyName.Contains("Secret", StringComparison.OrdinalIgnoreCase);
     }
 
     private static Descarga CreateDescarga(
@@ -978,5 +1438,12 @@ public static class DbInitializer
         public static readonly Guid FavoritoFotoCliente002 = Guid.Parse("90000000-0000-0000-0000-000000000103");
         public static readonly Guid FavoritoEventoAdmin = Guid.Parse("90000000-0000-0000-0000-000000000104");
         public static readonly Guid FavoritoFotoAdmin = Guid.Parse("90000000-0000-0000-0000-000000000105");
+        public static readonly Guid PerfilFotografaDemo = Guid.Parse("a0000000-0000-0000-0000-000000000101");
+        public static readonly Guid PaqueteCasamientoCompleto = Guid.Parse("b0000000-0000-0000-0000-000000000101");
+        public static readonly Guid PaqueteCasamientoPremium = Guid.Parse("b0000000-0000-0000-0000-000000000102");
+        public static readonly Guid PaqueteCumpleCompleto = Guid.Parse("b0000000-0000-0000-0000-000000000103");
+        public static readonly Guid SesionPrivadaClienteDemo = Guid.Parse("c0000000-0000-0000-0000-000000000101");
+        public static readonly Guid FotoPrivadaClienteDemo001 = Guid.Parse("d0000000-0000-0000-0000-000000000101");
+        public static readonly Guid FotoPrivadaClienteDemo002 = Guid.Parse("d0000000-0000-0000-0000-000000000102");
     }
 }

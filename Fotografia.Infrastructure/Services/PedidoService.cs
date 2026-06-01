@@ -2,6 +2,7 @@ using AutoMapper;
 using Fotografia.Infrastructure.Data;
 using Fotografia.Application.DTOs.Common;
 using Fotografia.Application.DTOs.Pedidos;
+using Fotografia.Domain.Constants;
 using Fotografia.Domain.Entities;
 using Fotografia.Application.Helpers;
 using Fotografia.Application.Services.Interfaces;
@@ -128,6 +129,16 @@ public sealed class PedidoService(AppDbContext dbContext, IMapper mapper, ICurre
                 FotoId = foto.Id,
                 PrecioUnitario = foto.PrecioUnitario,
                 Cantidad = 1
+            }).ToList(),
+            PedidoItems = fotos.Select(foto => new PedidoItem
+            {
+                TipoItem = PedidoItemTipos.FotoEvento,
+                FotoId = foto.Id,
+                Descripcion = foto.NombreArchivo,
+                PrecioUnitario = foto.PrecioUnitario,
+                Cantidad = 1,
+                Subtotal = foto.PrecioUnitario,
+                FechaCreacionUtc = DateTime.UtcNow
             }).ToList()
         };
 
@@ -146,7 +157,13 @@ public sealed class PedidoService(AppDbContext dbContext, IMapper mapper, ICurre
         return dbContext.Pedidos
             .Include(x => x.Cliente)
             .Include(x => x.PedidoFotos)
-            .ThenInclude(x => x.Foto);
+            .ThenInclude(x => x.Foto)
+            .Include(x => x.PedidoItems)
+            .ThenInclude(x => x.Foto)
+            .Include(x => x.PedidoItems)
+            .ThenInclude(x => x.PaqueteEvento)
+            .Include(x => x.PedidoItems)
+            .ThenInclude(x => x.FotoPrivada);
     }
 
     private bool CanAccess(Pedido pedido)

@@ -57,6 +57,22 @@ public sealed class FotosController(
             : this.ToActionResult(result);
     }
 
+    [HttpPost("metadata/bulk")]
+    [Authorize(Roles = SistemaRoles.Admin)]
+    public async Task<IActionResult> CreateMetadataBulk(CrearFotoMetadataBulkRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await fotoService.CreateMetadataBulkAsync(request, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpPost("storage-keys/bulk")]
+    [Authorize(Roles = SistemaRoles.Admin)]
+    public async Task<IActionResult> GenerateStorageKeysBulk(GenerarStorageKeysBulkRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await fotoService.GenerateStorageKeysBulkAsync(request, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
     [HttpPut("{id:guid}")]
     [Authorize(Roles = SistemaRoles.Admin)]
     public async Task<IActionResult> Update(Guid id, ActualizarFotoRequestDto request, CancellationToken cancellationToken)

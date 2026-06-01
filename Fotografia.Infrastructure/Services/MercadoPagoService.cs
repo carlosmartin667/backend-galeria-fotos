@@ -31,6 +31,12 @@ public sealed class MercadoPagoService(
     {
         var pedido = await dbContext.Pedidos
             .Include(x => x.Cliente)
+            .Include(x => x.PedidoItems)
+            .ThenInclude(x => x.Foto)
+            .Include(x => x.PedidoItems)
+            .ThenInclude(x => x.PaqueteEvento)
+            .Include(x => x.PedidoItems)
+            .ThenInclude(x => x.FotoPrivada)
             .Include(x => x.PedidoFotos)
             .ThenInclude(x => x.Foto)
             .FirstOrDefaultAsync(x => x.Id == pedidoId, cancellationToken);
@@ -50,18 +56,19 @@ public sealed class MercadoPagoService(
             return ApiResponse<MercadoPagoPreferenceResponseDto>.Fail("Mercado Pago no esta configurado.");
         }
 
-        if (pedido.PedidoFotos.Count == 0)
+        var preferenceItems = CreatePreferenceItems(pedido).ToList();
+        if (preferenceItems.Count == 0)
         {
-            return ApiResponse<MercadoPagoPreferenceResponseDto>.Fail("El pedido no tiene fotos.");
+            return ApiResponse<MercadoPagoPreferenceResponseDto>.Fail("El pedido no tiene items para pagar.");
         }
 
         var payload = new
         {
-            items = pedido.PedidoFotos.Select(item => new
+            items = preferenceItems.Select(item => new
             {
-                title = item.Foto?.NombreArchivo ?? "Foto digital",
-                quantity = item.Cantidad,
-                unit_price = item.PrecioUnitario,
+                title = item.Title,
+                quantity = item.Quantity,
+                unit_price = item.UnitPrice,
                 currency_id = pedido.Moneda
             }),
             payer = new
@@ -202,6 +209,24 @@ public sealed class MercadoPagoService(
         return !string.IsNullOrWhiteSpace(_settings.AccessToken)
             && !_settings.AccessToken.StartsWith("__", StringComparison.Ordinal);
     }
+
+    private static IEnumerable<PreferenceItem> CreatePreferenceItems(Pedido pedido)
+    {
+        if (pedido.PedidoItems.Count > 0)
+        {
+            return pedido.PedidoItems.Select(item => new PreferenceItem(
+                item.Descripcion,
+                item.Cantidad,
+                item.PrecioUnitario));
+        }
+
+        return pedido.PedidoFotos.Select(item => new PreferenceItem(
+            item.Foto?.NombreArchivo ?? "Foto digital",
+            item.Cantidad,
+            item.PrecioUnitario));
+    }
+
+    private sealed record PreferenceItem(string Title, int Quantity, decimal UnitPrice);
 
     private static string? GetString(JsonElement element, string propertyName)
     {

@@ -22,6 +22,98 @@ namespace Fotografia.Infrastructure.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Fotografia.Domain.Entities.CarritoCompra", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("FechaActualizacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaCreacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UsuarioId", "Estado")
+                        .IsUnique()
+                        .HasFilter("[Estado] = 'Activo'");
+
+                    b.ToTable("CarritosCompra", (string)null);
+                });
+
+            modelBuilder.Entity("Fotografia.Domain.Entities.CarritoItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Cantidad")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("CarritoCompraId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime>("FechaCreacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("FotoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("FotoPrivadaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("PaqueteEventoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("PrecioUnitario")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TipoItem")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CarritoCompraId");
+
+                    b.HasIndex("FotoId");
+
+                    b.HasIndex("FotoPrivadaId");
+
+                    b.HasIndex("PaqueteEventoId");
+
+                    b.HasIndex("CarritoCompraId", "TipoItem", "FotoId")
+                        .IsUnique()
+                        .HasFilter("[FotoId] IS NOT NULL");
+
+                    b.HasIndex("CarritoCompraId", "TipoItem", "FotoPrivadaId")
+                        .IsUnique()
+                        .HasFilter("[FotoPrivadaId] IS NOT NULL");
+
+                    b.HasIndex("CarritoCompraId", "TipoItem", "PaqueteEventoId")
+                        .IsUnique()
+                        .HasFilter("[PaqueteEventoId] IS NOT NULL");
+
+                    b.ToTable("CarritoItems", (string)null);
+                });
+
             modelBuilder.Entity("Fotografia.Domain.Entities.Cliente", b =>
                 {
                     b.Property<Guid>("Id")
@@ -151,13 +243,16 @@ namespace Fotografia.Infrastructure.Migrations
                     b.Property<int>("DescargasRealizadas")
                         .HasColumnType("int");
 
-                    b.Property<Guid>("EventoId")
+                    b.Property<Guid?>("EventoId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("ExpiraEnUtc")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("FotoId")
+                    b.Property<Guid?>("FotoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("FotoPrivadaId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("NombreArchivo")
@@ -181,6 +276,8 @@ namespace Fotografia.Infrastructure.Migrations
 
                     b.HasIndex("FotoId");
 
+                    b.HasIndex("FotoPrivadaId");
+
                     b.HasIndex("PedidoId");
 
                     b.ToTable("Descargas", (string)null);
@@ -191,6 +288,11 @@ namespace Fotografia.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
 
                     b.Property<DateTime?>("ActualizadoEnUtc")
                         .HasColumnType("datetime2");
@@ -210,10 +312,15 @@ namespace Fotografia.Infrastructure.Migrations
 
                     b.Property<string>("Estado")
                         .IsRequired()
+                        .ValueGeneratedOnAdd()
                         .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
+                        .HasColumnType("nvarchar(64)")
+                        .HasDefaultValue("Publicado");
 
                     b.Property<DateTime>("FechaEventoUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaLimiteCompraUtc")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Nombre")
@@ -221,10 +328,20 @@ namespace Fotografia.Infrastructure.Migrations
                         .HasMaxLength(180)
                         .HasColumnType("nvarchar(180)");
 
+                    b.Property<Guid?>("PortadaFotoId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(220)
                         .HasColumnType("nvarchar(220)");
+
+                    b.Property<string>("Visibilidad")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasDefaultValue("Publico");
 
                     b.HasKey("Id");
 
@@ -232,8 +349,12 @@ namespace Fotografia.Infrastructure.Migrations
 
                     b.HasIndex("CreadoPorUsuarioId");
 
+                    b.HasIndex("PortadaFotoId");
+
                     b.HasIndex("Slug")
                         .IsUnique();
+
+                    b.HasIndex("Activo", "Estado", "Visibilidad");
 
                     b.ToTable("Eventos", (string)null);
                 });
@@ -280,6 +401,9 @@ namespace Fotografia.Infrastructure.Migrations
                     b.Property<Guid>("EventoId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("FechaActualizacionUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<int?>("Height")
                         .HasColumnType("int");
 
@@ -300,6 +424,11 @@ namespace Fotografia.Infrastructure.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<bool>("Procesada")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<long>("SizeInBytes")
                         .HasColumnType("bigint");
 
@@ -310,6 +439,11 @@ namespace Fotografia.Infrastructure.Migrations
 
                     b.Property<DateTime>("SubidaEnUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("TieneMarcaAgua")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<int?>("Width")
                         .HasColumnType("int");
@@ -345,6 +479,75 @@ namespace Fotografia.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("FotosFavoritas", (string)null);
+                });
+
+            modelBuilder.Entity("Fotografia.Domain.Entities.FotoPrivada", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Activa")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTime?>("FechaActualizacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaCreacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("Height")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MarcaAguaStorageKey")
+                        .HasMaxLength(700)
+                        .HasColumnType("nvarchar(700)");
+
+                    b.Property<string>("NombreArchivo")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<decimal>("PrecioUnitario")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("PreviewUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("SesionPrivadaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("SizeInBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(700)
+                        .HasColumnType("nvarchar(700)");
+
+                    b.Property<int?>("Width")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClienteId");
+
+                    b.HasIndex("SesionPrivadaId");
+
+                    b.HasIndex("SesionPrivadaId", "StorageKey")
+                        .IsUnique();
+
+                    b.ToTable("FotosPrivadas", (string)null);
                 });
 
             modelBuilder.Entity("Fotografia.Domain.Entities.Pago", b =>
@@ -395,6 +598,47 @@ namespace Fotografia.Infrastructure.Migrations
                     b.ToTable("Pagos", (string)null);
                 });
 
+            modelBuilder.Entity("Fotografia.Domain.Entities.PaqueteEvento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Activo")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("EventoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("FechaActualizacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaCreacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IncluyeTodasLasFotos")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
+
+                    b.Property<decimal>("Precio")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventoId");
+
+                    b.ToTable("PaquetesEvento", (string)null);
+                });
+
             modelBuilder.Entity("Fotografia.Domain.Entities.Pedido", b =>
                 {
                     b.Property<Guid>("Id")
@@ -415,7 +659,7 @@ namespace Fotografia.Infrastructure.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
-                    b.Property<Guid>("EventoId")
+                    b.Property<Guid?>("EventoId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("MercadoPagoPreferenceId")
@@ -460,6 +704,204 @@ namespace Fotografia.Infrastructure.Migrations
                     b.HasIndex("FotoId");
 
                     b.ToTable("PedidoFotos", (string)null);
+                });
+
+            modelBuilder.Entity("Fotografia.Domain.Entities.PedidoItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Cantidad")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime>("FechaCreacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("FotoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("FotoPrivadaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("PaqueteEventoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PedidoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("PrecioUnitario")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TipoItem")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FotoId");
+
+                    b.HasIndex("FotoPrivadaId");
+
+                    b.HasIndex("PaqueteEventoId");
+
+                    b.HasIndex("PedidoId");
+
+                    b.ToTable("PedidoItems", (string)null);
+                });
+
+            modelBuilder.Entity("Fotografia.Domain.Entities.PerfilFotografa", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Activa")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("BannerUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Biografia")
+                        .HasMaxLength(3000)
+                        .HasColumnType("nvarchar(3000)");
+
+                    b.Property<string>("Ciudad")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("CorreoPublico")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Direccion")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Facebook")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTime?>("FechaActualizacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaCreacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FotoPerfilUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Instagram")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Pais")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Provincia")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("SitioWeb")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("TextoBienvenida")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("TikTok")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Titulo")
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
+
+                    b.Property<string>("WhatsApp")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Activa")
+                        .IsUnique()
+                        .HasFilter("[Activa] = 1");
+
+                    b.ToTable("PerfilesFotografa", (string)null);
+                });
+
+            modelBuilder.Entity("Fotografia.Domain.Entities.SesionPrivada", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Activa")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("FechaActualizacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaCreacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaSesionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("PrecioPaquete")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClienteId");
+
+                    b.ToTable("SesionesPrivadas", (string)null);
                 });
 
             modelBuilder.Entity("Fotografia.Domain.Entities.Usuario", b =>
@@ -525,6 +967,49 @@ namespace Fotografia.Infrastructure.Migrations
                     b.ToTable("Usuarios", (string)null);
                 });
 
+            modelBuilder.Entity("Fotografia.Domain.Entities.CarritoCompra", b =>
+                {
+                    b.HasOne("Fotografia.Domain.Entities.Usuario", "Usuario")
+                        .WithMany("CarritosCompra")
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Usuario");
+                });
+
+            modelBuilder.Entity("Fotografia.Domain.Entities.CarritoItem", b =>
+                {
+                    b.HasOne("Fotografia.Domain.Entities.CarritoCompra", "CarritoCompra")
+                        .WithMany("Items")
+                        .HasForeignKey("CarritoCompraId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Fotografia.Domain.Entities.Foto", "Foto")
+                        .WithMany("CarritoItems")
+                        .HasForeignKey("FotoId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Fotografia.Domain.Entities.FotoPrivada", "FotoPrivada")
+                        .WithMany("CarritoItems")
+                        .HasForeignKey("FotoPrivadaId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Fotografia.Domain.Entities.PaqueteEvento", "PaqueteEvento")
+                        .WithMany("CarritoItems")
+                        .HasForeignKey("PaqueteEventoId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CarritoCompra");
+
+                    b.Navigation("Foto");
+
+                    b.Navigation("FotoPrivada");
+
+                    b.Navigation("PaqueteEvento");
+                });
+
             modelBuilder.Entity("Fotografia.Domain.Entities.Cliente", b =>
                 {
                     b.HasOne("Fotografia.Domain.Entities.Usuario", "Usuario")
@@ -584,14 +1069,17 @@ namespace Fotografia.Infrastructure.Migrations
                     b.HasOne("Fotografia.Domain.Entities.Evento", "Evento")
                         .WithMany("Descargas")
                         .HasForeignKey("EventoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Fotografia.Domain.Entities.Foto", "Foto")
                         .WithMany()
                         .HasForeignKey("FotoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Fotografia.Domain.Entities.FotoPrivada", "FotoPrivada")
+                        .WithMany()
+                        .HasForeignKey("FotoPrivadaId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Fotografia.Domain.Entities.Pedido", "Pedido")
                         .WithMany("Descargas")
@@ -604,6 +1092,8 @@ namespace Fotografia.Infrastructure.Migrations
                     b.Navigation("Evento");
 
                     b.Navigation("Foto");
+
+                    b.Navigation("FotoPrivada");
 
                     b.Navigation("Pedido");
                 });
@@ -620,9 +1110,16 @@ namespace Fotografia.Infrastructure.Migrations
                         .HasForeignKey("CreadoPorUsuarioId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("Fotografia.Domain.Entities.Foto", "PortadaFoto")
+                        .WithMany()
+                        .HasForeignKey("PortadaFotoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("ClientePrincipal");
 
                     b.Navigation("CreadoPorUsuario");
+
+                    b.Navigation("PortadaFoto");
                 });
 
             modelBuilder.Entity("Fotografia.Domain.Entities.EventoFavorito", b =>
@@ -649,7 +1146,7 @@ namespace Fotografia.Infrastructure.Migrations
                     b.HasOne("Fotografia.Domain.Entities.Evento", "Evento")
                         .WithMany("Fotos")
                         .HasForeignKey("EventoId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Evento");
@@ -674,6 +1171,25 @@ namespace Fotografia.Infrastructure.Migrations
                     b.Navigation("Usuario");
                 });
 
+            modelBuilder.Entity("Fotografia.Domain.Entities.FotoPrivada", b =>
+                {
+                    b.HasOne("Fotografia.Domain.Entities.Cliente", "Cliente")
+                        .WithMany("FotosPrivadas")
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Fotografia.Domain.Entities.SesionPrivada", "SesionPrivada")
+                        .WithMany("Fotos")
+                        .HasForeignKey("SesionPrivadaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Cliente");
+
+                    b.Navigation("SesionPrivada");
+                });
+
             modelBuilder.Entity("Fotografia.Domain.Entities.Pago", b =>
                 {
                     b.HasOne("Fotografia.Domain.Entities.Pedido", "Pedido")
@@ -683,6 +1199,17 @@ namespace Fotografia.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Pedido");
+                });
+
+            modelBuilder.Entity("Fotografia.Domain.Entities.PaqueteEvento", b =>
+                {
+                    b.HasOne("Fotografia.Domain.Entities.Evento", "Evento")
+                        .WithMany("Paquetes")
+                        .HasForeignKey("EventoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Evento");
                 });
 
             modelBuilder.Entity("Fotografia.Domain.Entities.Pedido", b =>
@@ -696,8 +1223,7 @@ namespace Fotografia.Infrastructure.Migrations
                     b.HasOne("Fotografia.Domain.Entities.Evento", "Evento")
                         .WithMany("Pedidos")
                         .HasForeignKey("EventoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Cliente");
 
@@ -723,13 +1249,65 @@ namespace Fotografia.Infrastructure.Migrations
                     b.Navigation("Pedido");
                 });
 
+            modelBuilder.Entity("Fotografia.Domain.Entities.PedidoItem", b =>
+                {
+                    b.HasOne("Fotografia.Domain.Entities.Foto", "Foto")
+                        .WithMany("PedidoItems")
+                        .HasForeignKey("FotoId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Fotografia.Domain.Entities.FotoPrivada", "FotoPrivada")
+                        .WithMany("PedidoItems")
+                        .HasForeignKey("FotoPrivadaId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Fotografia.Domain.Entities.PaqueteEvento", "PaqueteEvento")
+                        .WithMany("PedidoItems")
+                        .HasForeignKey("PaqueteEventoId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Fotografia.Domain.Entities.Pedido", "Pedido")
+                        .WithMany("PedidoItems")
+                        .HasForeignKey("PedidoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Foto");
+
+                    b.Navigation("FotoPrivada");
+
+                    b.Navigation("PaqueteEvento");
+
+                    b.Navigation("Pedido");
+                });
+
+            modelBuilder.Entity("Fotografia.Domain.Entities.SesionPrivada", b =>
+                {
+                    b.HasOne("Fotografia.Domain.Entities.Cliente", "Cliente")
+                        .WithMany("SesionesPrivadas")
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Cliente");
+                });
+
+            modelBuilder.Entity("Fotografia.Domain.Entities.CarritoCompra", b =>
+                {
+                    b.Navigation("Items");
+                });
+
             modelBuilder.Entity("Fotografia.Domain.Entities.Cliente", b =>
                 {
                     b.Navigation("Descargas");
 
                     b.Navigation("EventosPrincipales");
 
+                    b.Navigation("FotosPrivadas");
+
                     b.Navigation("Pedidos");
+
+                    b.Navigation("SesionesPrivadas");
                 });
 
             modelBuilder.Entity("Fotografia.Domain.Entities.Evento", b =>
@@ -742,16 +1320,36 @@ namespace Fotografia.Infrastructure.Migrations
 
                     b.Navigation("Fotos");
 
+                    b.Navigation("Paquetes");
+
                     b.Navigation("Pedidos");
                 });
 
             modelBuilder.Entity("Fotografia.Domain.Entities.Foto", b =>
                 {
+                    b.Navigation("CarritoItems");
+
                     b.Navigation("Comentarios");
 
                     b.Navigation("Favoritos");
 
                     b.Navigation("PedidoFotos");
+
+                    b.Navigation("PedidoItems");
+                });
+
+            modelBuilder.Entity("Fotografia.Domain.Entities.FotoPrivada", b =>
+                {
+                    b.Navigation("CarritoItems");
+
+                    b.Navigation("PedidoItems");
+                });
+
+            modelBuilder.Entity("Fotografia.Domain.Entities.PaqueteEvento", b =>
+                {
+                    b.Navigation("CarritoItems");
+
+                    b.Navigation("PedidoItems");
                 });
 
             modelBuilder.Entity("Fotografia.Domain.Entities.Pedido", b =>
@@ -761,10 +1359,19 @@ namespace Fotografia.Infrastructure.Migrations
                     b.Navigation("Pago");
 
                     b.Navigation("PedidoFotos");
+
+                    b.Navigation("PedidoItems");
+                });
+
+            modelBuilder.Entity("Fotografia.Domain.Entities.SesionPrivada", b =>
+                {
+                    b.Navigation("Fotos");
                 });
 
             modelBuilder.Entity("Fotografia.Domain.Entities.Usuario", b =>
                 {
+                    b.Navigation("CarritosCompra");
+
                     b.Navigation("Cliente");
 
                     b.Navigation("ComentariosEventos");
