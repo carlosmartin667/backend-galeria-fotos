@@ -1,5 +1,5 @@
-using Fotografia.Api.DTOs.Auth;
-using Fotografia.Api.Services.Interfaces;
+using Fotografia.Application.DTOs.Auth;
+using Fotografia.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Fotografia.Api.Controllers;

@@ -1,16 +1,16 @@
 using System.Text;
-using Fotografia.Api.Data;
 using Fotografia.Api.Helpers;
-using Fotografia.Api.Mappings;
-using Fotografia.Api.Services;
-using Fotografia.Api.Services.Interfaces;
-using Fotografia.Api.Settings;
+using Fotografia.Application;
+using Fotografia.Application.Services.Interfaces;
+using Fotografia.Infrastructure;
+using Fotografia.Infrastructure.Settings;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
+ApplyLocalSettingsFile(builder.Configuration, builder.Environment.ContentRootPath, Directory.GetCurrentDirectory());
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -36,18 +36,8 @@ builder.Services.AddSwaggerGen(options =>
     options.OperationFilter<AuthorizeOperationFilter>();
 });
 builder.Services.AddProblemDetails();
-builder.Services.AddHttpClient();
-
-builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
-builder.Services.Configure<MercadoPagoSettings>(builder.Configuration.GetSection(MercadoPagoSettings.SectionName));
-builder.Services.Configure<ResendSettings>(builder.Configuration.GetSection(ResendSettings.SectionName));
-builder.Services.Configure<CloudflareR2Settings>(builder.Configuration.GetSection(CloudflareR2Settings.SectionName));
-
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection no esta configurado.");
-
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(connectionString));
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
     ?? throw new InvalidOperationException("La seccion Jwt no esta configurada.");
@@ -70,18 +60,6 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
-builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
-builder.Services.AddSingleton<JwtHelper>();
-
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IEventoService, EventoService>();
-builder.Services.AddScoped<IFotoService, FotoService>();
-builder.Services.AddScoped<IClienteService, ClienteService>();
-builder.Services.AddScoped<IPedidoService, PedidoService>();
-builder.Services.AddScoped<IMercadoPagoService, MercadoPagoService>();
-builder.Services.AddScoped<IDescargaService, DescargaService>();
-builder.Services.AddScoped<IStorageService, CloudflareR2StorageService>();
-builder.Services.AddScoped<IEmailService, EmailService>();
 
 builder.Services.AddCors(options =>
 {
@@ -98,6 +76,11 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+startupLogger.LogInformation(
+    "Pexels API Key configurada: {Configurada}",
+    string.IsNullOrWhiteSpace(app.Configuration["Pexels:ApiKey"]) ? "no" : "sí");
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -107,6 +90,12 @@ if (app.Environment.IsDevelopment())
         options.RoutePrefix = "swagger";
         options.DocumentTitle = "Fotografia Backend API";
     });
+}
+
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var initializer = scope.ServiceProvider.GetRequiredService<IDatabaseInitializer>();
+    await initializer.InitializeAsync();
 }
 
 if (!app.Environment.IsDevelopment())
@@ -122,3 +111,53 @@ app.MapControllers();
 app.MapGet("/", () => Results.Redirect("/swagger")).AllowAnonymous();
 
 app.Run();
+
+static void ApplyLocalSettingsFile(IConfiguration configuration, params string[] basePaths)
+{
+    var candidatePaths = GetLocalSettingsCandidatePaths(basePaths);
+
+    foreach (var candidatePath in candidatePaths)
+    {
+        if (!File.Exists(candidatePath))
+        {
+            continue;
+        }
+
+        var directory = Path.GetDirectoryName(candidatePath);
+        var fileName = Path.GetFileName(candidatePath);
+
+        if (string.IsNullOrWhiteSpace(directory) || string.IsNullOrWhiteSpace(fileName))
+        {
+            continue;
+        }
+
+        var localConfiguration = new ConfigurationBuilder()
+            .SetBasePath(directory)
+            .AddJsonFile(fileName, optional: false, reloadOnChange: false)
+            .Build();
+
+        foreach (var localValue in localConfiguration.AsEnumerable().Where(value => value.Value is not null))
+        {
+            if (string.IsNullOrWhiteSpace(configuration[localValue.Key]))
+            {
+                configuration[localValue.Key] = localValue.Value;
+            }
+        }
+    }
+}
+
+static List<string> GetLocalSettingsCandidatePaths(params string[] basePaths)
+{
+    var candidatePaths = new List<string>();
+
+    foreach (var basePath in basePaths.Where(path => !string.IsNullOrWhiteSpace(path)))
+    {
+        candidatePaths.Add(Path.Combine(basePath, "appsettings.Local.json"));
+        candidatePaths.Add(Path.Combine(basePath, "Fotografia.Api", "appsettings.Local.json"));
+    }
+
+    return candidatePaths
+        .Select(Path.GetFullPath)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+}
