@@ -22,6 +22,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<PortfolioItem> PortfolioItems => Set<PortfolioItem>();
     public DbSet<ServicioFotografia> ServiciosFotografia => Set<ServicioFotografia>();
     public DbSet<PreguntaFrecuente> PreguntasFrecuentes => Set<PreguntaFrecuente>();
+    public DbSet<SolicitudPresupuesto> SolicitudesPresupuesto => Set<SolicitudPresupuesto>();
+    public DbSet<AgendaItem> AgendaItems => Set<AgendaItem>();
     public DbSet<SesionPrivada> SesionesPrivadas => Set<SesionPrivada>();
     public DbSet<FotoPrivada> FotosPrivadas => Set<FotoPrivada>();
     public DbSet<ComentarioEvento> ComentariosEventos => Set<ComentarioEvento>();
@@ -124,6 +126,61 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.Respuesta).HasMaxLength(2000).IsRequired();
             entity.Property(x => x.Categoria).HasMaxLength(120);
             entity.Property(x => x.Activa).HasDefaultValue(true);
+        });
+
+        modelBuilder.Entity<SolicitudPresupuesto>(entity =>
+        {
+            entity.ToTable("SolicitudesPresupuesto");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Estado, x.FechaCreacionUtc });
+            entity.HasIndex(x => new { x.Activa, x.FechaCreacionUtc });
+            entity.HasIndex(x => x.ServicioId);
+            entity.Property(x => x.Nombre).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.Email).HasMaxLength(256).IsRequired();
+            entity.Property(x => x.WhatsApp).HasMaxLength(64);
+            entity.Property(x => x.TipoEvento).HasMaxLength(120);
+            entity.Property(x => x.Lugar).HasMaxLength(240);
+            entity.Property(x => x.Mensaje).HasMaxLength(2000).IsRequired();
+            entity.Property(x => x.Estado).HasMaxLength(64).HasDefaultValue(SolicitudPresupuestoEstados.Nuevo).IsRequired();
+            entity.Property(x => x.Activa).HasDefaultValue(true);
+            entity.HasOne(x => x.Servicio)
+                .WithMany()
+                .HasForeignKey(x => x.ServicioId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AgendaItem>(entity =>
+        {
+            entity.ToTable("AgendaItems");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.FechaInicioUtc, x.FechaFinUtc });
+            entity.HasIndex(x => new { x.Activo, x.Estado });
+            entity.HasIndex(x => x.EventoId);
+            entity.HasIndex(x => x.SesionPrivadaId);
+            entity.HasIndex(x => x.ClienteId);
+            entity.HasIndex(x => x.SolicitudPresupuestoId);
+            entity.Property(x => x.Titulo).HasMaxLength(180).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(1000);
+            entity.Property(x => x.Tipo).HasMaxLength(64).HasDefaultValue(AgendaItemTipos.Otro).IsRequired();
+            entity.Property(x => x.Ubicacion).HasMaxLength(240);
+            entity.Property(x => x.Estado).HasMaxLength(64).HasDefaultValue(AgendaItemEstados.Programado).IsRequired();
+            entity.Property(x => x.Activo).HasDefaultValue(true);
+            entity.HasOne(x => x.Evento)
+                .WithMany()
+                .HasForeignKey(x => x.EventoId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.SesionPrivada)
+                .WithMany()
+                .HasForeignKey(x => x.SesionPrivadaId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Cliente)
+                .WithMany()
+                .HasForeignKey(x => x.ClienteId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.SolicitudPresupuesto)
+                .WithMany()
+                .HasForeignKey(x => x.SolicitudPresupuestoId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Evento>(entity =>

@@ -584,6 +584,92 @@ public static class DbInitializer
             cancellationToken);
         await SaveSeedChangesAsync(dbContext, logger, "Seed: sesiones privadas", cancellationToken);
 
+        LogSeedBlock(logger, "Seed: solicitudes y agenda demo");
+        var solicitudCasamiento = await UpsertSolicitudPresupuestoAsync(
+            dbContext,
+            SeedIds.SolicitudPresupuestoCasamiento,
+            "Lucia Fernandez",
+            "lucia.fernandez@example.com",
+            "+5493513333333",
+            "Casamiento",
+            SeedIds.ServicioCasamientos,
+            now.AddMonths(3),
+            "Villa Allende",
+            120,
+            "Quisiera consultar disponibilidad y presupuesto para cobertura de casamiento.",
+            SolicitudPresupuestoEstados.Nuevo,
+            now,
+            cancellationToken);
+
+        await UpsertSolicitudPresupuestoAsync(
+            dbContext,
+            SeedIds.SolicitudPresupuestoBook,
+            "Martin Pereyra",
+            "martin.pereyra@example.com",
+            "+5493514444444",
+            "Book personal",
+            SeedIds.ServicioBookPersonal,
+            now.AddDays(25),
+            "Cordoba Capital",
+            null,
+            "Necesito fotos para marca personal y redes profesionales.",
+            SolicitudPresupuestoEstados.Contactado,
+            now,
+            cancellationToken);
+
+        await UpsertAgendaItemAsync(
+            dbContext,
+            SeedIds.AgendaReunionCliente,
+            "Reunion con Lucia Fernandez",
+            "Reunion inicial para revisar propuesta de casamiento.",
+            AgendaItemTipos.Reunion,
+            now.AddDays(2).Date.AddHours(14),
+            now.AddDays(2).Date.AddHours(15),
+            "Videollamada",
+            AgendaItemEstados.Programado,
+            null,
+            null,
+            clienteDemo.Id,
+            solicitudCasamiento.Id,
+            now,
+            cancellationToken);
+
+        await UpsertAgendaItemAsync(
+            dbContext,
+            SeedIds.AgendaSesionPrivadaDemo,
+            "Sesion privada familiar",
+            "Bloque reservado para sesion privada demo.",
+            AgendaItemTipos.SesionPrivada,
+            now.AddDays(5).Date.AddHours(10),
+            now.AddDays(5).Date.AddHours(12),
+            "Estudio",
+            AgendaItemEstados.Confirmado,
+            null,
+            sesionPrivada.Id,
+            clienteDemo.Id,
+            null,
+            now,
+            cancellationToken);
+
+        await UpsertAgendaItemAsync(
+            dbContext,
+            SeedIds.AgendaBloqueoFecha,
+            "Bloqueo de fecha",
+            "Fecha reservada para trabajo externo.",
+            AgendaItemTipos.Bloqueo,
+            now.AddDays(8).Date.AddHours(9),
+            now.AddDays(8).Date.AddHours(18),
+            null,
+            AgendaItemEstados.Programado,
+            null,
+            null,
+            null,
+            null,
+            now,
+            cancellationToken);
+
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: solicitudes y agenda demo", cancellationToken);
+
         LogSeedBlock(logger, "Seed: fotos privadas");
         await UpsertFotoPrivadaAsync(dbContext, SeedIds.FotoPrivadaClienteDemo001, sesionPrivada.Id, clienteDemo.Id, "privada-familiar-001.jpg", 2200m, now, cancellationToken);
         await UpsertFotoPrivadaAsync(dbContext, SeedIds.FotoPrivadaClienteDemo002, sesionPrivada.Id, clienteDemo.Id, "privada-familiar-002.jpg", 2200m, now, cancellationToken);
@@ -1014,6 +1100,99 @@ public static class DbInitializer
         pregunta.Orden = orden;
         pregunta.Activa = true;
         pregunta.FechaActualizacionUtc = now;
+    }
+
+    private static async Task<SolicitudPresupuesto> UpsertSolicitudPresupuestoAsync(
+        AppDbContext dbContext,
+        Guid id,
+        string nombre,
+        string email,
+        string whatsApp,
+        string tipoEvento,
+        Guid? servicioId,
+        DateTime? fechaTentativaUtc,
+        string lugar,
+        int? cantidadInvitados,
+        string mensaje,
+        string estado,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var solicitud = await dbContext.SolicitudesPresupuesto.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (solicitud is null)
+        {
+            solicitud = new SolicitudPresupuesto
+            {
+                Id = id,
+                Nombre = nombre,
+                Email = normalizedEmail,
+                Mensaje = mensaje,
+                FechaCreacionUtc = now
+            };
+
+            dbContext.SolicitudesPresupuesto.Add(solicitud);
+        }
+
+        solicitud.Nombre = nombre;
+        solicitud.Email = normalizedEmail;
+        solicitud.WhatsApp = whatsApp;
+        solicitud.TipoEvento = tipoEvento;
+        solicitud.ServicioId = servicioId;
+        solicitud.FechaTentativaUtc = fechaTentativaUtc;
+        solicitud.Lugar = lugar;
+        solicitud.CantidadInvitados = cantidadInvitados;
+        solicitud.Mensaje = mensaje;
+        solicitud.Estado = estado;
+        solicitud.Activa = true;
+        solicitud.FechaActualizacionUtc = now;
+
+        return solicitud;
+    }
+
+    private static async Task UpsertAgendaItemAsync(
+        AppDbContext dbContext,
+        Guid id,
+        string titulo,
+        string descripcion,
+        string tipo,
+        DateTime fechaInicioUtc,
+        DateTime fechaFinUtc,
+        string? ubicacion,
+        string estado,
+        Guid? eventoId,
+        Guid? sesionPrivadaId,
+        Guid? clienteId,
+        Guid? solicitudPresupuestoId,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var item = await dbContext.AgendaItems.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (item is null)
+        {
+            item = new AgendaItem
+            {
+                Id = id,
+                Titulo = titulo,
+                FechaCreacionUtc = now
+            };
+
+            dbContext.AgendaItems.Add(item);
+        }
+
+        item.Titulo = titulo;
+        item.Descripcion = descripcion;
+        item.Tipo = tipo;
+        item.FechaInicioUtc = fechaInicioUtc;
+        item.FechaFinUtc = fechaFinUtc;
+        item.Ubicacion = ubicacion;
+        item.Estado = estado;
+        item.EventoId = eventoId;
+        item.SesionPrivadaId = sesionPrivadaId;
+        item.ClienteId = clienteId;
+        item.SolicitudPresupuestoId = solicitudPresupuestoId;
+        item.Activo = true;
+        item.FechaActualizacionUtc = now;
     }
 
     private static async Task UpsertPaqueteEventoAsync(
@@ -1618,6 +1797,11 @@ public static class DbInitializer
         public static readonly Guid FaqPagos = Guid.Parse("e3000000-0000-0000-0000-000000000103");
         public static readonly Guid FaqPrivadas = Guid.Parse("e3000000-0000-0000-0000-000000000104");
         public static readonly Guid FaqEdicion = Guid.Parse("e3000000-0000-0000-0000-000000000105");
+        public static readonly Guid SolicitudPresupuestoCasamiento = Guid.Parse("e4000000-0000-0000-0000-000000000101");
+        public static readonly Guid SolicitudPresupuestoBook = Guid.Parse("e4000000-0000-0000-0000-000000000102");
+        public static readonly Guid AgendaReunionCliente = Guid.Parse("e5000000-0000-0000-0000-000000000101");
+        public static readonly Guid AgendaSesionPrivadaDemo = Guid.Parse("e5000000-0000-0000-0000-000000000102");
+        public static readonly Guid AgendaBloqueoFecha = Guid.Parse("e5000000-0000-0000-0000-000000000103");
         public static readonly Guid PaqueteCasamientoCompleto = Guid.Parse("b0000000-0000-0000-0000-000000000101");
         public static readonly Guid PaqueteCasamientoPremium = Guid.Parse("b0000000-0000-0000-0000-000000000102");
         public static readonly Guid PaqueteCumpleCompleto = Guid.Parse("b0000000-0000-0000-0000-000000000103");

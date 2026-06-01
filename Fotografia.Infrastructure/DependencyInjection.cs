@@ -52,6 +52,8 @@ public static class DependencyInjection
         services.AddScoped<IPortfolioService, PortfolioService>();
         services.AddScoped<IServicioFotografiaService, ServicioFotografiaService>();
         services.AddScoped<IFaqService, FaqService>();
+        services.AddScoped<ISolicitudPresupuestoService, SolicitudPresupuestoService>();
+        services.AddScoped<IAgendaService, AgendaService>();
         services.AddScoped<IPaqueteEventoService, PaqueteEventoService>();
         services.AddScoped<ICarritoService, CarritoService>();
         services.AddScoped<ISesionPrivadaService, SesionPrivadaService>();

@@ -1,5 +1,6 @@
 using AutoMapper;
 using Fotografia.Application.DTOs.Admin;
+using Fotografia.Application.DTOs.Agenda;
 using Fotografia.Application.DTOs.Auth;
 using Fotografia.Application.DTOs.Carrito;
 using Fotografia.Application.DTOs.Clientes;
@@ -12,6 +13,7 @@ using Fotografia.Application.DTOs.Paquetes;
 using Fotografia.Application.DTOs.Pagos;
 using Fotografia.Application.DTOs.Pedidos;
 using Fotografia.Application.DTOs.Portfolio;
+using Fotografia.Application.DTOs.Presupuestos;
 using Fotografia.Application.DTOs.Servicios;
 using Fotografia.Application.DTOs.SesionesPrivadas;
 using Fotografia.Application.DTOs.Sitio;
@@ -86,6 +88,13 @@ public sealed class MappingProfile : Profile
         CreateMap<CrearServicioFotografiaRequestDto, ServicioFotografia>();
         CreateMap<PreguntaFrecuente, PreguntaFrecuenteResponseDto>();
         CreateMap<CrearPreguntaFrecuenteRequestDto, PreguntaFrecuente>();
+        CreateMap<SolicitudPresupuesto, SolicitudPresupuestoResponseDto>()
+            .ForMember(dest => dest.ServicioNombre, opt => opt.MapFrom(src => src.Servicio == null ? null : src.Servicio.Nombre));
+        CreateMap<AgendaItem, AgendaItemResponseDto>()
+            .ForMember(dest => dest.EventoNombre, opt => opt.MapFrom(src => src.Evento == null ? null : src.Evento.Nombre))
+            .ForMember(dest => dest.SesionPrivadaTitulo, opt => opt.MapFrom(src => src.SesionPrivada == null ? null : src.SesionPrivada.Titulo))
+            .ForMember(dest => dest.ClienteNombre, opt => opt.MapFrom(src => src.Cliente == null ? null : src.Cliente.Nombre))
+            .ForMember(dest => dest.SolicitudPresupuestoNombre, opt => opt.MapFrom(src => src.SolicitudPresupuesto == null ? null : src.SolicitudPresupuesto.Nombre));
 
         CreateMap<ComentarioEvento, ComentarioResponseDto>()
             .ForMember(dest => dest.NombreUsuario, opt => opt.MapFrom(src => src.Usuario == null ? string.Empty : src.Usuario.Nombre));
