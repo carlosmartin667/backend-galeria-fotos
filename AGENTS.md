@@ -39,6 +39,11 @@ Guia para Codex y otros agentes que trabajen en este repositorio backend.
 - SQL Server solo guarda metadata: nombres, content type, tamanio, claves de R2, precio y relaciones.
 - Las fotos reales se guardan en Cloudflare R2.
 - Las descargas deben usar URLs temporales o firmadas.
+- La integracion con Pexels vive solo en el backend y se usa para cargar fotos demo.
+- No exponer la API Key de Pexels al frontend ni devolverla en responses.
+- Las fotos de Pexels se guardan como metadata en `Fotos`; no descargar imagenes ni guardar binarios en SQL Server.
+- No subir fotos reales a Pexels ni usar Pexels como storage productivo final.
+- Cloudflare R2 o storage propio sigue siendo el destino real para produccion.
 
 ## Pagos y emails
 
@@ -52,6 +57,11 @@ Guia para Codex y otros agentes que trabajen en este repositorio backend.
 - Usar `appsettings.example.json` como plantilla.
 - Para desarrollo, preferir Secret Manager o variables de entorno.
 - Revisar `.gitignore` antes de agregar archivos de configuracion locales.
+- Configurar Pexels en desarrollo con Secret Manager:
+  `dotnet user-secrets init --project .\Fotografia.Api\Fotografia.Api.csproj`
+  `dotnet user-secrets set "Pexels:ApiKey" "TU_API_KEY" --project .\Fotografia.Api\Fotografia.Api.csproj`
+  `dotnet user-secrets list --project .\Fotografia.Api\Fotografia.Api.csproj`
+- Alternativamente usar variable de entorno `Pexels__ApiKey`.
 
 ## Convenciones de cambios
 

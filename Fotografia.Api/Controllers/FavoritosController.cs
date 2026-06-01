@@ -1,4 +1,5 @@
 using Fotografia.Api.Helpers;
+using Fotografia.Application.DTOs.Common;
 using Fotografia.Application.Security;
 using Fotografia.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -15,6 +16,13 @@ public sealed class FavoritosController(IFavoritoService favoritoService) : Cont
     public async Task<IActionResult> GetEventos(CancellationToken cancellationToken)
     {
         var result = await favoritoService.GetEventosAsync(cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpGet("eventos/paginado")]
+    public async Task<IActionResult> GetEventosPaginated([FromQuery] PaginationQueryDto pagination, CancellationToken cancellationToken)
+    {
+        var result = await favoritoService.GetEventosPaginatedAsync(pagination, cancellationToken);
         return this.ToActionResult(result);
     }
 
@@ -36,6 +44,13 @@ public sealed class FavoritosController(IFavoritoService favoritoService) : Cont
     public async Task<IActionResult> GetFotos(CancellationToken cancellationToken)
     {
         var result = await favoritoService.GetFotosAsync(cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpGet("fotos/paginado")]
+    public async Task<IActionResult> GetFotosPaginated([FromQuery] PaginationQueryDto pagination, CancellationToken cancellationToken)
+    {
+        var result = await favoritoService.GetFotosPaginatedAsync(pagination, cancellationToken);
         return this.ToActionResult(result);
     }
 

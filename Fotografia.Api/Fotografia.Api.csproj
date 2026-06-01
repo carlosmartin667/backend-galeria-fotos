@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Fotografia.Api</RootNamespace>
+    <UserSecretsId>73a017dc-0cfc-4a05-b160-088a13c18ff7</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

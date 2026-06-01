@@ -1,5 +1,6 @@
 using Fotografia.Api.Helpers;
 using Fotografia.Application.DTOs.Comentarios;
+using Fotografia.Application.DTOs.Common;
 using Fotografia.Application.DTOs.Fotos;
 using Fotografia.Application.Security;
 using Fotografia.Application.Services.Interfaces;
@@ -19,6 +20,14 @@ public sealed class FotosController(
     public async Task<IActionResult> GetByEvento(Guid eventoId, CancellationToken cancellationToken)
     {
         var result = await fotoService.GetByEventoAsync(eventoId, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpGet("evento/{eventoId:guid}/paginado")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetByEventoPaginated(Guid eventoId, [FromQuery] PaginationQueryDto pagination, CancellationToken cancellationToken)
+    {
+        var result = await fotoService.GetByEventoPaginatedAsync(eventoId, pagination, cancellationToken);
         return this.ToActionResult(result);
     }
 

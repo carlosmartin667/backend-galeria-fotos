@@ -1,9 +1,11 @@
 using AutoMapper;
 using Fotografia.Infrastructure.Data;
+using Fotografia.Application.DTOs.Common;
 using Fotografia.Application.DTOs.Pedidos;
 using Fotografia.Domain.Entities;
 using Fotografia.Application.Helpers;
 using Fotografia.Application.Services.Interfaces;
+using Fotografia.Infrastructure.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Fotografia.Infrastructure.Services;
@@ -27,6 +29,45 @@ public sealed class PedidoService(AppDbContext dbContext, IMapper mapper, ICurre
         var pedidos = await query.OrderByDescending(x => x.CreadoEnUtc).ToListAsync(cancellationToken);
 
         return ApiResponse<IReadOnlyCollection<PedidoResponseDto>>.Ok(mapper.Map<List<PedidoResponseDto>>(pedidos));
+    }
+
+    public async Task<ApiResponse<PaginatedResponseDto<PedidoResponseDto>>> GetPaginatedAsync(
+        PaginationQueryDto pagination,
+        CancellationToken cancellationToken = default)
+    {
+        var validationError = pagination.Validate();
+        if (validationError is not null)
+        {
+            return ApiResponse<PaginatedResponseDto<PedidoResponseDto>>.Fail(validationError);
+        }
+
+        var query = QueryPedidos().AsNoTracking();
+
+        if (!currentUser.IsAdmin)
+        {
+            if (currentUser.UserId is null)
+            {
+                return ApiResponse<PaginatedResponseDto<PedidoResponseDto>>.Forbidden("Debe iniciar sesion.");
+            }
+
+            query = query.Where(x => x.Cliente != null && x.Cliente.UsuarioId == currentUser.UserId.Value);
+        }
+
+        var paginated = await query
+            .OrderByDescending(x => x.CreadoEnUtc)
+            .ToPaginatedResponseAsync(pagination, cancellationToken);
+
+        return ApiResponse<PaginatedResponseDto<PedidoResponseDto>>.Ok(new PaginatedResponseDto<PedidoResponseDto>
+        {
+            Items = mapper.Map<List<PedidoResponseDto>>(paginated.Items),
+            Page = paginated.Page,
+            PageSize = paginated.PageSize,
+            TotalItems = paginated.TotalItems,
+            TotalPages = paginated.TotalPages,
+            HasPreviousPage = paginated.HasPreviousPage,
+            HasNextPage = paginated.HasNextPage,
+            All = paginated.All
+        });
     }
 
     public async Task<ApiResponse<PedidoResponseDto>> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

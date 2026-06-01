@@ -1,4 +1,5 @@
 using Fotografia.Api.Helpers;
+using Fotografia.Application.DTOs.Common;
 using Fotografia.Application.DTOs.Pedidos;
 using Fotografia.Application.Security;
 using Fotografia.Application.Services.Interfaces;
@@ -16,6 +17,13 @@ public sealed class PedidosController(IPedidoService pedidoService) : Controller
     public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
     {
         var result = await pedidoService.GetAllAsync(cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpGet("paginado")]
+    public async Task<IActionResult> GetPaginated([FromQuery] PaginationQueryDto pagination, CancellationToken cancellationToken)
+    {
+        var result = await pedidoService.GetPaginatedAsync(pagination, cancellationToken);
         return this.ToActionResult(result);
     }
 

@@ -1,9 +1,11 @@
 using AutoMapper;
 using Fotografia.Infrastructure.Data;
+using Fotografia.Application.DTOs.Common;
 using Fotografia.Application.DTOs.Eventos;
 using Fotografia.Domain.Entities;
 using Fotografia.Application.Helpers;
 using Fotografia.Application.Services.Interfaces;
+using Fotografia.Infrastructure.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Fotografia.Infrastructure.Services;
@@ -19,6 +21,36 @@ public sealed class EventoService(AppDbContext dbContext, IMapper mapper, ICurre
             .ToListAsync(cancellationToken);
 
         return ApiResponse<IReadOnlyCollection<EventoResponseDto>>.Ok(mapper.Map<List<EventoResponseDto>>(eventos));
+    }
+
+    public async Task<ApiResponse<PaginatedResponseDto<EventoResponseDto>>> GetPaginatedAsync(
+        PaginationQueryDto pagination,
+        CancellationToken cancellationToken = default)
+    {
+        var validationError = pagination.Validate();
+        if (validationError is not null)
+        {
+            return ApiResponse<PaginatedResponseDto<EventoResponseDto>>.Fail(validationError);
+        }
+
+        var query = dbContext.Eventos
+            .AsNoTracking()
+            .Include(x => x.Fotos)
+            .OrderByDescending(x => x.FechaEventoUtc);
+
+        var paginated = await query.ToPaginatedResponseAsync(pagination, cancellationToken);
+
+        return ApiResponse<PaginatedResponseDto<EventoResponseDto>>.Ok(new PaginatedResponseDto<EventoResponseDto>
+        {
+            Items = mapper.Map<List<EventoResponseDto>>(paginated.Items),
+            Page = paginated.Page,
+            PageSize = paginated.PageSize,
+            TotalItems = paginated.TotalItems,
+            TotalPages = paginated.TotalPages,
+            HasPreviousPage = paginated.HasPreviousPage,
+            HasNextPage = paginated.HasNextPage,
+            All = paginated.All
+        });
     }
 
     public async Task<ApiResponse<EventoResponseDto>> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

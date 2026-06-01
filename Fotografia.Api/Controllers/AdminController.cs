@@ -1,5 +1,6 @@
 using Fotografia.Api.Helpers;
 using Fotografia.Application.DTOs.Admin;
+using Fotografia.Application.DTOs.Pexels;
 using Fotografia.Application.Security;
 using Fotografia.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +10,9 @@ namespace Fotografia.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public sealed class AdminController(IAdminPerfilService adminPerfilService) : ControllerBase
+public sealed class AdminController(
+    IAdminPerfilService adminPerfilService,
+    IFotoService fotoService) : ControllerBase
 {
     [HttpGet("perfil-publico")]
     [AllowAnonymous]
@@ -32,6 +35,16 @@ public sealed class AdminController(IAdminPerfilService adminPerfilService) : Co
     public async Task<IActionResult> UpdateMiPerfil(ActualizarAdminPerfilRequestDto request, CancellationToken cancellationToken)
     {
         var result = await adminPerfilService.UpdateMiPerfilAsync(request, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpPost("demo/pexels/importar-fotos")]
+    [Authorize(Roles = SistemaRoles.Admin)]
+    public async Task<IActionResult> ImportarFotosDesdePexels(
+        ImportarFotosPexelsRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await fotoService.ImportarDesdePexelsAsync(request, cancellationToken);
         return this.ToActionResult(result);
     }
 }

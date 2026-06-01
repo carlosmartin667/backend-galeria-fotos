@@ -5,10 +5,12 @@ using Fotografia.Application.Services.Interfaces;
 using Fotografia.Infrastructure;
 using Fotografia.Infrastructure.Settings;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
+ApplyLocalSettingsFile(builder.Configuration, builder.Environment.ContentRootPath, Directory.GetCurrentDirectory());
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -74,6 +76,11 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+startupLogger.LogInformation(
+    "Pexels API Key configurada: {Configurada}",
+    string.IsNullOrWhiteSpace(app.Configuration["Pexels:ApiKey"]) ? "no" : "sí");
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -104,3 +111,53 @@ app.MapControllers();
 app.MapGet("/", () => Results.Redirect("/swagger")).AllowAnonymous();
 
 app.Run();
+
+static void ApplyLocalSettingsFile(IConfiguration configuration, params string[] basePaths)
+{
+    var candidatePaths = GetLocalSettingsCandidatePaths(basePaths);
+
+    foreach (var candidatePath in candidatePaths)
+    {
+        if (!File.Exists(candidatePath))
+        {
+            continue;
+        }
+
+        var directory = Path.GetDirectoryName(candidatePath);
+        var fileName = Path.GetFileName(candidatePath);
+
+        if (string.IsNullOrWhiteSpace(directory) || string.IsNullOrWhiteSpace(fileName))
+        {
+            continue;
+        }
+
+        var localConfiguration = new ConfigurationBuilder()
+            .SetBasePath(directory)
+            .AddJsonFile(fileName, optional: false, reloadOnChange: false)
+            .Build();
+
+        foreach (var localValue in localConfiguration.AsEnumerable().Where(value => value.Value is not null))
+        {
+            if (string.IsNullOrWhiteSpace(configuration[localValue.Key]))
+            {
+                configuration[localValue.Key] = localValue.Value;
+            }
+        }
+    }
+}
+
+static List<string> GetLocalSettingsCandidatePaths(params string[] basePaths)
+{
+    var candidatePaths = new List<string>();
+
+    foreach (var basePath in basePaths.Where(path => !string.IsNullOrWhiteSpace(path)))
+    {
+        candidatePaths.Add(Path.Combine(basePath, "appsettings.Local.json"));
+        candidatePaths.Add(Path.Combine(basePath, "Fotografia.Api", "appsettings.Local.json"));
+    }
+
+    return candidatePaths
+        .Select(Path.GetFullPath)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+}

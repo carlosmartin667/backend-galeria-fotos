@@ -49,3 +49,50 @@ dotnet tool restore
 dotnet tool run dotnet-ef migrations add NombreMigracion --project Fotografia.Infrastructure/Fotografia.Infrastructure.csproj --startup-project Fotografia.Api/Fotografia.Api.csproj --context AppDbContext --output-dir Migrations
 dotnet tool run dotnet-ef database update --project Fotografia.Infrastructure/Fotografia.Infrastructure.csproj --startup-project Fotografia.Api/Fotografia.Api.csproj --context AppDbContext
 ```
+
+## Configuracion de Pexels en desarrollo
+
+No guardes la API Key real en archivos versionados.
+
+Opcion simple automatizada con archivo local ignorado por Git:
+
+```powershell
+.\scripts\local\create-appsettings-local.ps1
+.\scripts\local\run-api-dev.ps1
+```
+
+`run-api-dev.ps1` tambien crea `Fotografia.Api/appsettings.Local.json` automaticamente si todavia no existe.
+El archivo `Fotografia.Api/appsettings.Local.json` esta ignorado por Git.
+Si la API ya estaba corriendo cuando creaste o cambiaste este archivo, detenela y volve a levantarla.
+
+La prioridad de configuracion queda:
+
+```text
+appsettings.json
+appsettings.Development.json
+appsettings.Local.json
+user-secrets
+variables de entorno
+```
+
+Opcion con Secret Manager:
+
+```powershell
+.\scripts\local\set-pexels-secret.ps1
+.\scripts\local\run-api-dev.ps1
+```
+
+Luego proba desde Swagger o Angular:
+
+```http
+POST /api/Admin/demo/pexels/importar-fotos
+```
+
+Tambien puede configurarse por variable de entorno antes de ejecutar la API:
+
+```powershell
+$env:Pexels__ApiKey="TU_API_KEY"
+dotnet run --project .\Fotografia.Api\Fotografia.Api.csproj
+```
+
+El script real `scripts/local/set-pexels-secret.ps1` esta ignorado por Git. El archivo `scripts/local/set-pexels-secret.example.ps1` queda como referencia sin secretos reales.

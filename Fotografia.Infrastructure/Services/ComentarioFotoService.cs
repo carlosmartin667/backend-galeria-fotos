@@ -17,7 +17,7 @@ public sealed class ComentarioFotoService(
         Guid fotoId,
         CancellationToken cancellationToken = default)
     {
-        var exists = await dbContext.Fotos.AnyAsync(x => x.Id == fotoId, cancellationToken);
+        var exists = await dbContext.Fotos.AnyAsync(x => x.Id == fotoId && x.Activa, cancellationToken);
         if (!exists)
         {
             return ApiResponse<IReadOnlyCollection<ComentarioResponseDto>>.NotFound("Foto no encontrada.");
@@ -47,7 +47,7 @@ public sealed class ComentarioFotoService(
             return ApiResponse<ComentarioResponseDto>.Fail("El texto del comentario es requerido.");
         }
 
-        var exists = await dbContext.Fotos.AnyAsync(x => x.Id == fotoId, cancellationToken);
+        var exists = await dbContext.Fotos.AnyAsync(x => x.Id == fotoId && x.Activa, cancellationToken);
         if (!exists)
         {
             return ApiResponse<ComentarioResponseDto>.NotFound("Foto no encontrada.");

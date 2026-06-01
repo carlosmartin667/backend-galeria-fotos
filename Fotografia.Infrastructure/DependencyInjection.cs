@@ -18,6 +18,7 @@ public static class DependencyInjection
         services.Configure<ResendSettings>(configuration.GetSection(ResendSettings.SectionName));
         services.Configure<CloudflareR2Settings>(configuration.GetSection(CloudflareR2Settings.SectionName));
         services.Configure<DatabaseSettings>(configuration.GetSection(DatabaseSettings.SectionName));
+        services.Configure<PexelsSettings>(configuration.GetSection(PexelsSettings.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection no esta configurado.");
@@ -28,6 +29,10 @@ public static class DependencyInjection
                 sqlOptions => sqlOptions.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
 
         services.AddHttpClient();
+        services.AddHttpClient<IPexelsService, PexelsService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(20);
+        });
         services.AddHttpContextAccessor();
         services.AddSingleton<JwtHelper>();
 
