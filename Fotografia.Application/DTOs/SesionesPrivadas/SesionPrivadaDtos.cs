@@ -60,6 +60,16 @@ public sealed class ActualizarSesionPrivadaRequestDto
     public bool Activa { get; set; } = true;
 }
 
+public sealed class CambiarEstadoSesionPrivadaRequestDto
+{
+    [Required]
+    [MaxLength(64)]
+    public string Estado { get; set; } = string.Empty;
+
+    [MaxLength(1000)]
+    public string? Comentario { get; set; }
+}
+
 public sealed class FotoPrivadaResponseDto
 {
     public Guid Id { get; set; }

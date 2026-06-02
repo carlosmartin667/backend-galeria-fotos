@@ -20,4 +20,5 @@ public sealed class Pedido
     public ICollection<PedidoItem> PedidoItems { get; set; } = [];
     public Pago? Pago { get; set; }
     public ICollection<Descarga> Descargas { get; set; } = [];
+    public ICollection<PedidoEstadoHistorial> HistorialEstados { get; set; } = [];
 }

@@ -49,3 +49,25 @@ public sealed class PedidoResponseDto
     public List<PedidoFotoResponseDto> Fotos { get; set; } = [];
     public List<PedidoItemResponseDto> Items { get; set; } = [];
 }
+
+public sealed class CambiarEstadoPedidoRequestDto
+{
+    [Required]
+    [MaxLength(64)]
+    public string Estado { get; set; } = string.Empty;
+
+    [MaxLength(1000)]
+    public string? Comentario { get; set; }
+}
+
+public sealed class PedidoEstadoHistorialResponseDto
+{
+    public Guid Id { get; set; }
+    public Guid PedidoId { get; set; }
+    public string EstadoAnterior { get; set; } = string.Empty;
+    public string EstadoNuevo { get; set; } = string.Empty;
+    public string? Comentario { get; set; }
+    public Guid? UsuarioId { get; set; }
+    public string? UsuarioNombre { get; set; }
+    public DateTime FechaCambioUtc { get; set; }
+}

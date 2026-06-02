@@ -4,6 +4,7 @@ using System.Text.Json;
 using AutoMapper;
 using Fotografia.Infrastructure.Data;
 using Fotografia.Application.DTOs.Pagos;
+using Fotografia.Domain.Constants;
 using Fotografia.Domain.Entities;
 using Fotografia.Application.Helpers;
 using Fotografia.Application.Services.Interfaces;
@@ -194,10 +195,26 @@ public sealed class MercadoPagoService(
             dbContext.Pagos.Add(pago);
         }
 
-        pedido.Estado = string.Equals(status, "approved", StringComparison.OrdinalIgnoreCase)
-            ? "Pagado"
-            : "Pago pendiente";
+        var estadoAnterior = pedido.Estado;
+        var estadoNuevo = string.Equals(status, "approved", StringComparison.OrdinalIgnoreCase)
+            ? PedidoEstados.Pagado
+            : PedidoEstados.PagoPendiente;
+
+        pedido.Estado = estadoNuevo;
         pedido.ActualizadoEnUtc = DateTime.UtcNow;
+
+        if (!string.Equals(estadoAnterior, estadoNuevo, StringComparison.OrdinalIgnoreCase))
+        {
+            dbContext.PedidoEstadoHistorial.Add(new PedidoEstadoHistorial
+            {
+                PedidoId = pedido.Id,
+                EstadoAnterior = estadoAnterior,
+                EstadoNuevo = estadoNuevo,
+                Comentario = "Actualizacion automatica por webhook de Mercado Pago.",
+                UsuarioId = null,
+                FechaCambioUtc = DateTime.UtcNow
+            });
+        }
 
         await dbContext.SaveChangesAsync(cancellationToken);
 

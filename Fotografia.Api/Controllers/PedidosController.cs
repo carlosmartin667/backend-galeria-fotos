@@ -34,6 +34,13 @@ public sealed class PedidosController(IPedidoService pedidoService) : Controller
         return this.ToActionResult(result);
     }
 
+    [HttpGet("{id:guid}/historial-estados")]
+    public async Task<IActionResult> GetHistorialEstados(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await pedidoService.GetHistorialEstadosAsync(id, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create(CrearPedidoRequestDto request, CancellationToken cancellationToken)
     {
@@ -41,5 +48,13 @@ public sealed class PedidosController(IPedidoService pedidoService) : Controller
         return result.Success
             ? CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result)
             : this.ToActionResult(result);
+    }
+
+    [HttpPut("{id:guid}/estado")]
+    [Authorize(Roles = SistemaRoles.Admin)]
+    public async Task<IActionResult> CambiarEstado(Guid id, CambiarEstadoPedidoRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await pedidoService.CambiarEstadoAsync(id, request, cancellationToken);
+        return this.ToActionResult(result);
     }
 }

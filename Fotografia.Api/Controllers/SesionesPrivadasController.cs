@@ -42,6 +42,14 @@ public sealed class SesionesPrivadasController(ISesionPrivadaService sesionPriva
         return this.ToActionResult(result);
     }
 
+    [HttpPut("{id:guid}/estado")]
+    [Authorize(Roles = SistemaRoles.Admin)]
+    public async Task<IActionResult> CambiarEstado(Guid id, CambiarEstadoSesionPrivadaRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await sesionPrivadaService.CambiarEstadoAsync(id, request, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = SistemaRoles.Admin)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)

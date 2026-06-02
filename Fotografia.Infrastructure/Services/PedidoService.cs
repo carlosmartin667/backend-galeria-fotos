@@ -164,6 +164,111 @@ public sealed class PedidoService(AppDbContext dbContext, IMapper mapper, ICurre
         return ApiResponse<PedidoResponseDto>.Ok(response, "Pedido creado.");
     }
 
+    public async Task<ApiResponse<PedidoResponseDto>> CambiarEstadoAsync(
+        Guid id,
+        CambiarEstadoPedidoRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!currentUser.IsAdmin)
+        {
+            return ApiResponse<PedidoResponseDto>.Forbidden("Solo un administrador puede cambiar el estado de pedidos.");
+        }
+
+        if (!PedidoEstados.TryNormalize(request.Estado, out var estadoNuevo))
+        {
+            return ApiResponse<PedidoResponseDto>.Fail("Estado de pedido invalido.");
+        }
+
+        var comentario = Normalize(request.Comentario);
+        if (estadoNuevo == PedidoEstados.Reembolsado && string.IsNullOrWhiteSpace(comentario))
+        {
+            return ApiResponse<PedidoResponseDto>.Fail("Reembolsado requiere comentario.");
+        }
+
+        var pedido = await QueryPedidos().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (pedido is null)
+        {
+            return ApiResponse<PedidoResponseDto>.NotFound("Pedido no encontrado.");
+        }
+
+        if (PedidoEstados.EsFinal(pedido.Estado)
+            && !PedidoEstados.EsFinal(estadoNuevo)
+            && string.IsNullOrWhiteSpace(comentario))
+        {
+            return ApiResponse<PedidoResponseDto>.Fail("Cambiar un pedido finalizado requiere comentario.");
+        }
+
+        var estadoAnterior = pedido.Estado;
+        if (string.Equals(estadoAnterior, estadoNuevo, StringComparison.OrdinalIgnoreCase))
+        {
+            var sameResponse = mapper.Map<PedidoResponseDto>(pedido);
+            return ApiResponse<PedidoResponseDto>.Ok(sameResponse, "El pedido ya tenia ese estado.");
+        }
+
+        pedido.Estado = estadoNuevo;
+        pedido.ActualizadoEnUtc = DateTime.UtcNow;
+        dbContext.PedidoEstadoHistorial.Add(new PedidoEstadoHistorial
+        {
+            PedidoId = pedido.Id,
+            EstadoAnterior = estadoAnterior,
+            EstadoNuevo = estadoNuevo,
+            Comentario = comentario,
+            UsuarioId = currentUser.UserId,
+            FechaCambioUtc = DateTime.UtcNow
+        });
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var updated = await QueryPedidos()
+            .AsNoTracking()
+            .FirstAsync(x => x.Id == pedido.Id, cancellationToken);
+
+        var response = mapper.Map<PedidoResponseDto>(updated);
+        SanitizeStorageKeysForNonAdmin(response);
+
+        return ApiResponse<PedidoResponseDto>.Ok(response, "Estado de pedido actualizado.");
+    }
+
+    public async Task<ApiResponse<IReadOnlyCollection<PedidoEstadoHistorialResponseDto>>> GetHistorialEstadosAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var pedido = await dbContext.Pedidos
+            .AsNoTracking()
+            .Include(x => x.Cliente)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        if (pedido is null)
+        {
+            return ApiResponse<IReadOnlyCollection<PedidoEstadoHistorialResponseDto>>.NotFound("Pedido no encontrado.");
+        }
+
+        if (!CanAccess(pedido))
+        {
+            return ApiResponse<IReadOnlyCollection<PedidoEstadoHistorialResponseDto>>.Forbidden("No puede consultar pedidos de otro usuario.");
+        }
+
+        var historial = await dbContext.PedidoEstadoHistorial
+            .AsNoTracking()
+            .Include(x => x.Usuario)
+            .Where(x => x.PedidoId == id)
+            .OrderByDescending(x => x.FechaCambioUtc)
+            .Select(x => new PedidoEstadoHistorialResponseDto
+            {
+                Id = x.Id,
+                PedidoId = x.PedidoId,
+                EstadoAnterior = x.EstadoAnterior,
+                EstadoNuevo = x.EstadoNuevo,
+                Comentario = x.Comentario,
+                UsuarioId = x.UsuarioId,
+                UsuarioNombre = x.Usuario == null ? null : x.Usuario.Nombre,
+                FechaCambioUtc = x.FechaCambioUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        return ApiResponse<IReadOnlyCollection<PedidoEstadoHistorialResponseDto>>.Ok(historial);
+    }
+
     private IQueryable<Pedido> QueryPedidos()
     {
         return dbContext.Pedidos
@@ -210,5 +315,10 @@ public sealed class PedidoService(AppDbContext dbContext, IMapper mapper, ICurre
                 item.Foto.StorageKey = string.Empty;
             }
         }
+    }
+
+    private static string? Normalize(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 }

@@ -3,6 +3,7 @@ using Fotografia.Application.DTOs.Fotos;
 using Fotografia.Application.DTOs.SesionesPrivadas;
 using Fotografia.Application.Helpers;
 using Fotografia.Application.Services.Interfaces;
+using Fotografia.Domain.Constants;
 using Fotografia.Domain.Entities;
 using Fotografia.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -64,6 +65,11 @@ public sealed class SesionPrivadaService(
             return ApiResponse<SesionPrivadaResponseDto>.Forbidden("Solo un administrador puede crear sesiones privadas.");
         }
 
+        if (!SesionPrivadaEstados.TryNormalize(request.Estado, out var estado))
+        {
+            return ApiResponse<SesionPrivadaResponseDto>.Fail("Estado de sesion privada invalido.");
+        }
+
         var clienteExists = await dbContext.Clientes.AnyAsync(x => x.Id == request.ClienteId, cancellationToken);
         if (!clienteExists)
         {
@@ -76,7 +82,7 @@ public sealed class SesionPrivadaService(
             Titulo = request.Titulo.Trim(),
             Descripcion = Normalize(request.Descripcion),
             FechaSesionUtc = request.FechaSesionUtc,
-            Estado = request.Estado.Trim(),
+            Estado = estado,
             PrecioPaquete = request.PrecioPaquete,
             Activa = true,
             FechaCreacionUtc = DateTime.UtcNow
@@ -106,10 +112,15 @@ public sealed class SesionPrivadaService(
             return ApiResponse<SesionPrivadaResponseDto>.NotFound("Sesion privada no encontrada.");
         }
 
+        if (!SesionPrivadaEstados.TryNormalize(request.Estado, out var estado))
+        {
+            return ApiResponse<SesionPrivadaResponseDto>.Fail("Estado de sesion privada invalido.");
+        }
+
         sesion.Titulo = request.Titulo.Trim();
         sesion.Descripcion = Normalize(request.Descripcion);
         sesion.FechaSesionUtc = request.FechaSesionUtc;
-        sesion.Estado = request.Estado.Trim();
+        sesion.Estado = estado;
         sesion.PrecioPaquete = request.PrecioPaquete;
         sesion.Activa = request.Activa;
         sesion.FechaActualizacionUtc = DateTime.UtcNow;
@@ -119,6 +130,41 @@ public sealed class SesionPrivadaService(
         return ApiResponse<SesionPrivadaResponseDto>.Ok(
             mapper.Map<SesionPrivadaResponseDto>(sesion),
             "Sesion privada actualizada.");
+    }
+
+    public async Task<ApiResponse<SesionPrivadaResponseDto>> CambiarEstadoAsync(
+        Guid id,
+        CambiarEstadoSesionPrivadaRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!currentUser.IsAdmin)
+        {
+            return ApiResponse<SesionPrivadaResponseDto>.Forbidden("Solo un administrador puede cambiar el estado de sesiones privadas.");
+        }
+
+        if (!SesionPrivadaEstados.TryNormalize(request.Estado, out var estado))
+        {
+            return ApiResponse<SesionPrivadaResponseDto>.Fail("Estado de sesion privada invalido.");
+        }
+
+        var sesion = await dbContext.SesionesPrivadas.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (sesion is null)
+        {
+            return ApiResponse<SesionPrivadaResponseDto>.NotFound("Sesion privada no encontrada.");
+        }
+
+        sesion.Estado = estado;
+        sesion.FechaActualizacionUtc = DateTime.UtcNow;
+        if (estado == SesionPrivadaEstados.Cancelada)
+        {
+            sesion.Activa = false;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return ApiResponse<SesionPrivadaResponseDto>.Ok(
+            mapper.Map<SesionPrivadaResponseDto>(sesion),
+            "Estado de sesion privada actualizado.");
     }
 
     public async Task<ApiResponse<bool>> DeleteAsync(Guid id, CancellationToken cancellationToken = default)

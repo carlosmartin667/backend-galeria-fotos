@@ -42,11 +42,13 @@ public static class DependencyInjection
         services.AddScoped<IEventoService, EventoService>();
         services.AddScoped<IFotoService, FotoService>();
         services.AddScoped<IClienteService, ClienteService>();
+        services.AddScoped<IClienteHistorialService, ClienteHistorialService>();
         services.AddScoped<IPedidoService, PedidoService>();
         services.AddScoped<IMercadoPagoService, MercadoPagoService>();
         services.AddScoped<IDescargaService, DescargaService>();
         services.AddScoped<IAdminPerfilService, AdminPerfilService>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();
+        services.AddScoped<IAdminOperacionesService, AdminOperacionesService>();
         services.AddScoped<IPerfilFotografaService, PerfilFotografaService>();
         services.AddScoped<ISitioPublicoService, SitioPublicoService>();
         services.AddScoped<IPortfolioService, PortfolioService>();
@@ -60,6 +62,7 @@ public static class DependencyInjection
         services.AddScoped<IComentarioEventoService, ComentarioEventoService>();
         services.AddScoped<IComentarioFotoService, ComentarioFotoService>();
         services.AddScoped<IFavoritoService, FavoritoService>();
+        services.AddScoped<INotaInternaService, NotaInternaService>();
         services.AddScoped<IStorageService, CloudflareR2StorageService>();
         services.AddScoped<IEmailService, EmailService>();
 

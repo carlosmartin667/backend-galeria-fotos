@@ -14,8 +14,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<Pedido> Pedidos => Set<Pedido>();
     public DbSet<PedidoFoto> PedidoFotos => Set<PedidoFoto>();
     public DbSet<PedidoItem> PedidoItems => Set<PedidoItem>();
+    public DbSet<PedidoEstadoHistorial> PedidoEstadoHistorial => Set<PedidoEstadoHistorial>();
     public DbSet<Pago> Pagos => Set<Pago>();
     public DbSet<Descarga> Descargas => Set<Descarga>();
+    public DbSet<NotaInterna> NotasInternas => Set<NotaInterna>();
     public DbSet<CarritoCompra> CarritosCompra => Set<CarritoCompra>();
     public DbSet<CarritoItem> CarritoItems => Set<CarritoItem>();
     public DbSet<PerfilFotografa> PerfilesFotografa => Set<PerfilFotografa>();
@@ -348,6 +350,24 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<PedidoEstadoHistorial>(entity =>
+        {
+            entity.ToTable("PedidoEstadoHistorial");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.PedidoId, x.FechaCambioUtc });
+            entity.Property(x => x.EstadoAnterior).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.EstadoNuevo).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Comentario).HasMaxLength(1000);
+            entity.HasOne(x => x.Pedido)
+                .WithMany(x => x.HistorialEstados)
+                .HasForeignKey(x => x.PedidoId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Usuario)
+                .WithMany()
+                .HasForeignKey(x => x.UsuarioId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
         modelBuilder.Entity<PedidoFoto>(entity =>
         {
             entity.ToTable("PedidoFotos");
@@ -433,6 +453,21 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasOne(x => x.FotoPrivada)
                 .WithMany()
                 .HasForeignKey(x => x.FotoPrivadaId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<NotaInterna>(entity =>
+        {
+            entity.ToTable("NotasInternas");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.EntidadTipo, x.EntidadId });
+            entity.HasIndex(x => new { x.Activa, x.FechaCreacionUtc });
+            entity.Property(x => x.EntidadTipo).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Texto).HasMaxLength(2000).IsRequired();
+            entity.Property(x => x.Activa).HasDefaultValue(true);
+            entity.HasOne(x => x.Usuario)
+                .WithMany()
+                .HasForeignKey(x => x.UsuarioId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

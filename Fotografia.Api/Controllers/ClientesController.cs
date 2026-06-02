@@ -10,7 +10,9 @@ namespace Fotografia.Api.Controllers;
 [ApiController]
 [Authorize(Roles = SistemaRoles.AdminUsuario)]
 [Route("api/[controller]")]
-public sealed class ClientesController(IClienteService clienteService) : ControllerBase
+public sealed class ClientesController(
+    IClienteService clienteService,
+    IClienteHistorialService clienteHistorialService) : ControllerBase
 {
     [HttpGet]
     [Authorize(Roles = SistemaRoles.Admin)]
@@ -24,6 +26,20 @@ public sealed class ClientesController(IClienteService clienteService) : Control
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
         var result = await clienteService.GetByIdAsync(id, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpGet("{clienteId:guid}/historial")]
+    public async Task<IActionResult> GetHistorial(Guid clienteId, CancellationToken cancellationToken)
+    {
+        var result = await clienteHistorialService.GetHistorialAsync(clienteId, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpGet("mi-historial")]
+    public async Task<IActionResult> GetMiHistorial(CancellationToken cancellationToken)
+    {
+        var result = await clienteHistorialService.GetMiHistorialAsync(cancellationToken);
         return this.ToActionResult(result);
     }
 

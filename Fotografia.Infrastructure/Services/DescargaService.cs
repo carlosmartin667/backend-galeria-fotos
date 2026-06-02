@@ -99,7 +99,7 @@ public sealed class DescargaService(
             return ApiResponse<LinkDescargaResponseDto>.Forbidden("No puede generar descargas de pedidos de otro usuario.");
         }
 
-        if (!PedidoEstados.EsPagado(pedido.Estado, pedido.Pago?.Estado))
+        if (!PedidoEstados.PermiteDescarga(pedido.Estado, pedido.Pago?.Estado))
         {
             logger.LogWarning("Descarga bloqueada por pedido no pagado. PedidoId={PedidoId} Estado={Estado}", pedido.Id, pedido.Estado);
             return ApiResponse<LinkDescargaResponseDto>.Fail("El pedido debe estar pagado para descargar fotos.");
@@ -192,7 +192,7 @@ public sealed class DescargaService(
             return ApiResponse<RegenerarDescargaResponseDto>.Forbidden("No puede regenerar descargas de otro usuario.");
         }
 
-        if (!PedidoEstados.EsPagado(pedido.Estado, pedido.Pago?.Estado))
+        if (!PedidoEstados.PermiteDescarga(pedido.Estado, pedido.Pago?.Estado))
         {
             logger.LogWarning("Descarga bloqueada por pedido no pagado. DescargaId={DescargaId} PedidoId={PedidoId}", descargaAnterior.Id, pedido.Id);
             return ApiResponse<RegenerarDescargaResponseDto>.Fail("El pedido debe estar pagado para regenerar una descarga.");
@@ -315,7 +315,7 @@ public sealed class DescargaService(
             return ApiResponse<DescargaResponseDto>.NotFound("Pedido no encontrado.");
         }
 
-        if (!PedidoEstados.EsPagado(pedido.Estado, pedido.Pago?.Estado))
+        if (!PedidoEstados.PermiteDescarga(pedido.Estado, pedido.Pago?.Estado))
         {
             logger.LogWarning("Descarga bloqueada por pedido no pagado. DescargaId={DescargaId} PedidoId={PedidoId}", descarga.Id, pedido.Id);
             return ApiResponse<DescargaResponseDto>.Fail("El pedido debe estar pagado para descargar fotos.");

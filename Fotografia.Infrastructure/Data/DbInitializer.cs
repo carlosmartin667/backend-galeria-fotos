@@ -498,7 +498,7 @@ public static class DbInitializer
         await SaveSeedChangesAsync(dbContext, logger, "Seed: portadas de evento solicitadas", cancellationToken);
 
         LogSeedBlock(logger, "Seed: pedidos demo solicitados");
-        await UpsertPedidoAsync(
+        var pedidoPendiente = await UpsertPedidoAsync(
             dbContext,
             SeedIds.PedidoCasamientoPendiente,
             clienteDemo.Id,
@@ -669,6 +669,61 @@ public static class DbInitializer
             cancellationToken);
 
         await SaveSeedChangesAsync(dbContext, logger, "Seed: solicitudes y agenda demo", cancellationToken);
+
+        LogSeedBlock(logger, "Seed: gestion operativa demo");
+        await UpsertPedidoEstadoHistorialAsync(
+            dbContext,
+            SeedIds.HistorialPedidoCasamientoPendiente,
+            pedidoPendiente.Id,
+            PedidoEstados.Pendiente,
+            PedidoEstados.PendientePago,
+            "Pedido demo pendiente de pago para seguimiento operativo.",
+            admin.Id,
+            now.AddMinutes(10),
+            cancellationToken);
+
+        await UpsertPedidoEstadoHistorialAsync(
+            dbContext,
+            SeedIds.HistorialPedidoCumpleanosPagado,
+            pedidoPagado.Id,
+            PedidoEstados.PendientePago,
+            PedidoEstados.Pagado,
+            "Pago demo aprobado y listo para generar descargas.",
+            null,
+            now.AddMinutes(20),
+            cancellationToken);
+
+        await UpsertNotaInternaAsync(
+            dbContext,
+            SeedIds.NotaInternaClienteDemo,
+            NotaInternaTipos.Cliente,
+            clienteDemo.Id,
+            "Cliente demo para revisar historial completo, sesiones y preferencias.",
+            admin.Id,
+            now,
+            cancellationToken);
+
+        await UpsertNotaInternaAsync(
+            dbContext,
+            SeedIds.NotaInternaPedidoDemo,
+            NotaInternaTipos.Pedido,
+            pedidoPendiente.Id,
+            "Pedido demo pendiente: contactar si no completa el pago.",
+            admin.Id,
+            now,
+            cancellationToken);
+
+        await UpsertNotaInternaAsync(
+            dbContext,
+            SeedIds.NotaInternaSolicitudDemo,
+            NotaInternaTipos.SolicitudPresupuesto,
+            solicitudCasamiento.Id,
+            "Solicitud demo prioritaria para responder con disponibilidad.",
+            admin.Id,
+            now,
+            cancellationToken);
+
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: gestion operativa demo", cancellationToken);
 
         LogSeedBlock(logger, "Seed: fotos privadas");
         await UpsertFotoPrivadaAsync(dbContext, SeedIds.FotoPrivadaClienteDemo001, sesionPrivada.Id, clienteDemo.Id, "privada-familiar-001.jpg", 2200m, now, cancellationToken);
@@ -1195,6 +1250,74 @@ public static class DbInitializer
         item.FechaActualizacionUtc = now;
     }
 
+    private static async Task UpsertPedidoEstadoHistorialAsync(
+        AppDbContext dbContext,
+        Guid id,
+        Guid pedidoId,
+        string estadoAnterior,
+        string estadoNuevo,
+        string comentario,
+        Guid? usuarioId,
+        DateTime fechaCambioUtc,
+        CancellationToken cancellationToken)
+    {
+        var historial = await dbContext.PedidoEstadoHistorial.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (historial is null)
+        {
+            historial = new PedidoEstadoHistorial
+            {
+                Id = id,
+                PedidoId = pedidoId,
+                EstadoAnterior = estadoAnterior,
+                EstadoNuevo = estadoNuevo,
+                FechaCambioUtc = fechaCambioUtc
+            };
+
+            dbContext.PedidoEstadoHistorial.Add(historial);
+        }
+
+        historial.PedidoId = pedidoId;
+        historial.EstadoAnterior = estadoAnterior;
+        historial.EstadoNuevo = estadoNuevo;
+        historial.Comentario = comentario;
+        historial.UsuarioId = usuarioId;
+        historial.FechaCambioUtc = fechaCambioUtc;
+    }
+
+    private static async Task UpsertNotaInternaAsync(
+        AppDbContext dbContext,
+        Guid id,
+        string entidadTipo,
+        Guid entidadId,
+        string texto,
+        Guid usuarioId,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var nota = await dbContext.NotasInternas.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (nota is null)
+        {
+            nota = new NotaInterna
+            {
+                Id = id,
+                EntidadTipo = entidadTipo,
+                EntidadId = entidadId,
+                Texto = texto,
+                UsuarioId = usuarioId,
+                FechaCreacionUtc = now
+            };
+
+            dbContext.NotasInternas.Add(nota);
+        }
+
+        nota.EntidadTipo = entidadTipo;
+        nota.EntidadId = entidadId;
+        nota.Texto = texto;
+        nota.UsuarioId = usuarioId;
+        nota.Activa = true;
+        nota.FechaActualizacionUtc = now;
+    }
+
     private static async Task UpsertPaqueteEventoAsync(
         AppDbContext dbContext,
         Guid id,
@@ -1257,7 +1380,7 @@ public static class DbInitializer
         sesion.Titulo = titulo;
         sesion.Descripcion = descripcion;
         sesion.FechaSesionUtc = fechaSesionUtc;
-        sesion.Estado = "Activa";
+        sesion.Estado = SesionPrivadaEstados.Programada;
         sesion.PrecioPaquete = 8500m;
         sesion.Activa = true;
         sesion.FechaActualizacionUtc = now;
@@ -1808,5 +1931,10 @@ public static class DbInitializer
         public static readonly Guid SesionPrivadaClienteDemo = Guid.Parse("c0000000-0000-0000-0000-000000000101");
         public static readonly Guid FotoPrivadaClienteDemo001 = Guid.Parse("d0000000-0000-0000-0000-000000000101");
         public static readonly Guid FotoPrivadaClienteDemo002 = Guid.Parse("d0000000-0000-0000-0000-000000000102");
+        public static readonly Guid HistorialPedidoCasamientoPendiente = Guid.Parse("f0000000-0000-0000-0000-000000000101");
+        public static readonly Guid HistorialPedidoCumpleanosPagado = Guid.Parse("f0000000-0000-0000-0000-000000000102");
+        public static readonly Guid NotaInternaClienteDemo = Guid.Parse("f1000000-0000-0000-0000-000000000101");
+        public static readonly Guid NotaInternaPedidoDemo = Guid.Parse("f1000000-0000-0000-0000-000000000102");
+        public static readonly Guid NotaInternaSolicitudDemo = Guid.Parse("f1000000-0000-0000-0000-000000000103");
     }
 }
