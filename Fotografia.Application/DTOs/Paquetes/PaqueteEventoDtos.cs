@@ -11,6 +11,8 @@ public sealed class PaqueteEventoResponseDto
     public decimal Precio { get; set; }
     public bool IncluyeTodasLasFotos { get; set; }
     public bool Activo { get; set; }
+    public bool Destacado { get; set; }
+    public int? OrdenDestacado { get; set; }
     public DateTime FechaCreacionUtc { get; set; }
     public DateTime? FechaActualizacionUtc { get; set; }
 }
@@ -29,6 +31,8 @@ public sealed class CrearPaqueteEventoRequestDto
 
     public bool IncluyeTodasLasFotos { get; set; } = true;
     public bool Activo { get; set; } = true;
+    public bool Destacado { get; set; }
+    public int? OrdenDestacado { get; set; }
 }
 
 public sealed class ActualizarPaqueteEventoRequestDto
@@ -45,4 +49,6 @@ public sealed class ActualizarPaqueteEventoRequestDto
 
     public bool IncluyeTodasLasFotos { get; set; } = true;
     public bool Activo { get; set; } = true;
+    public bool Destacado { get; set; }
+    public int? OrdenDestacado { get; set; }
 }

@@ -24,7 +24,9 @@ public sealed class PaqueteEventoService(AppDbContext dbContext, IMapper mapper,
         var paquetes = await dbContext.PaquetesEvento
             .AsNoTracking()
             .Where(x => x.EventoId == eventoId && x.Activo)
-            .OrderBy(x => x.Precio)
+            .OrderByDescending(x => x.Destacado)
+            .ThenBy(x => x.OrdenDestacado ?? int.MaxValue)
+            .ThenBy(x => x.Precio)
             .ToListAsync(cancellationToken);
 
         return ApiResponse<IReadOnlyCollection<PaqueteEventoResponseDto>>.Ok(
@@ -50,6 +52,8 @@ public sealed class PaqueteEventoService(AppDbContext dbContext, IMapper mapper,
             Precio = request.Precio,
             IncluyeTodasLasFotos = request.IncluyeTodasLasFotos,
             Activo = request.Activo,
+            Destacado = request.Destacado,
+            OrdenDestacado = request.OrdenDestacado,
             FechaCreacionUtc = DateTime.UtcNow
         };
 
@@ -77,6 +81,8 @@ public sealed class PaqueteEventoService(AppDbContext dbContext, IMapper mapper,
         paquete.Precio = request.Precio;
         paquete.IncluyeTodasLasFotos = request.IncluyeTodasLasFotos;
         paquete.Activo = request.Activo;
+        paquete.Destacado = request.Destacado;
+        paquete.OrdenDestacado = request.OrdenDestacado;
         paquete.FechaActualizacionUtc = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);

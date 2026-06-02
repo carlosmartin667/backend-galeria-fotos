@@ -17,6 +17,8 @@ public sealed class Foto
     public decimal PrecioUnitario { get; set; }
     public bool TieneMarcaAgua { get; set; }
     public bool Procesada { get; set; }
+    public bool Destacado { get; set; }
+    public int? OrdenDestacado { get; set; }
     public bool Activa { get; set; } = true;
     public DateTime SubidaEnUtc { get; set; } = DateTime.UtcNow;
     public DateTime? FechaActualizacionUtc { get; set; }

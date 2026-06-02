@@ -257,6 +257,8 @@ public static class DbInitializer
                 EventoId = SeedIds.EventoBoda,
                 ClienteId = SeedIds.ClienteSofia,
                 Estado = "Pagado",
+                Subtotal = 20200m,
+                DescuentoTotal = 0,
                 Total = 20200m,
                 Moneda = "ARS",
                 MercadoPagoPreferenceId = "pref_test_boda_sofia_lucas",
@@ -292,6 +294,8 @@ public static class DbInitializer
                 EventoId = SeedIds.EventoQuince,
                 ClienteId = SeedIds.ClienteValentina,
                 Estado = "Pendiente",
+                Subtotal = 15600m,
+                DescuentoTotal = 0,
                 Total = 15600m,
                 Moneda = "ARS",
                 MercadoPagoPreferenceId = "pref_test_quince_valentina",
@@ -313,6 +317,8 @@ public static class DbInitializer
                 EventoId = SeedIds.EventoCorporativo,
                 ClienteId = SeedIds.ClienteMateo,
                 Estado = "Pagado",
+                Subtotal = 8600m,
+                DescuentoTotal = 0,
                 Total = 8600m,
                 Moneda = "ARS",
                 MercadoPagoPreferenceId = "pref_test_workshop_marca_personal",
@@ -337,9 +343,44 @@ public static class DbInitializer
             });
         }
 
+        await EnsureSeedPedidoTotalsAsync(dbContext, cancellationToken);
+
         await SaveSeedChangesAsync(dbContext, logger, "Seed: pedidos demo", cancellationToken);
 
         await SeedDescargasAsync(dbContext, logger, cancellationToken);
+    }
+
+    private static async Task EnsureSeedPedidoTotalsAsync(AppDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var pedidoIds = new[]
+        {
+            SeedIds.PedidoBodaPagado,
+            SeedIds.PedidoQuincePendiente,
+            SeedIds.PedidoWorkshopPagado
+        };
+
+        var pedidos = await dbContext.Pedidos
+            .Include(x => x.PedidoFotos)
+            .Include(x => x.PedidoItems)
+            .Where(x => pedidoIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var pedido in pedidos)
+        {
+            var subtotal = pedido.PedidoItems.Count > 0
+                ? pedido.PedidoItems.Sum(x => x.Subtotal)
+                : pedido.PedidoFotos.Sum(x => x.PrecioUnitario * x.Cantidad);
+
+            if (subtotal <= 0)
+            {
+                subtotal = pedido.Total;
+            }
+
+            pedido.Subtotal = subtotal;
+            pedido.DescuentoTotal = Math.Max(0, pedido.DescuentoTotal);
+            pedido.Total = Math.Max(0, subtotal - pedido.DescuentoTotal);
+            pedido.ActualizadoEnUtc = SeedClock.Now;
+        }
     }
 
     private static async Task SeedDescargasAsync(AppDbContext dbContext, ILogger? logger, CancellationToken cancellationToken)
@@ -385,7 +426,12 @@ public static class DbInitializer
             CreatePlantilla(NotificacionTipos.DescargaLinkGeneradoCliente, NotificacionCanales.Email, "Link de descarga generado", "<p>Hola {{NombreCliente}}, generamos una descarga para tu pedido {{PedidoId}}. {{Link}}</p>", "Generamos una descarga para tu pedido {{PedidoId}}."),
             CreatePlantilla(NotificacionTipos.EventoPublicadoCliente, NotificacionCanales.Email, "Galeria publicada", "<p>Hola {{NombreCliente}}, la galeria {{NombreEvento}} ya esta publicada. {{Link}}</p>", "La galeria {{NombreEvento}} ya esta publicada."),
             CreatePlantilla(NotificacionTipos.SesionPrivadaListaCliente, NotificacionCanales.Email, "Sesion privada lista", "<p>Hola {{NombreCliente}}, tu sesion privada {{NombreEvento}} esta en estado {{Estado}}. {{Link}}</p>", "Tu sesion privada {{NombreEvento}} esta en estado {{Estado}}."),
-            CreatePlantilla(NotificacionTipos.NuevoComentarioAdmin, NotificacionCanales.Interna, "Nuevo comentario", "<p>{{NombreCliente}} agrego un comentario en {{NombreEvento}}.</p>", "{{NombreCliente}} agrego un comentario en {{NombreEvento}}.")
+            CreatePlantilla(NotificacionTipos.NuevoComentarioAdmin, NotificacionCanales.Interna, "Nuevo comentario", "<p>{{NombreCliente}} agrego un comentario en {{NombreEvento}}.</p>", "{{NombreCliente}} agrego un comentario en {{NombreEvento}}."),
+            CreatePlantilla(NotificacionTipos.CuponAplicadoCliente, NotificacionCanales.Email, "Cupon aplicado", "<p>Hola {{NombreCliente}}, aplicamos el cupon {{Codigo}} por {{Descuento}}. Total final: {{Total}}.</p>", "Aplicamos el cupon {{Codigo}} por {{Descuento}}. Total final: {{Total}}."),
+            CreatePlantilla(NotificacionTipos.CuponUsadoAdmin, NotificacionCanales.Interna, "Cupon usado", "<p>Se uso el cupon {{Codigo}} en el pedido {{PedidoId}} con descuento {{Descuento}}.</p>", "Se uso el cupon {{Codigo}} en el pedido {{PedidoId}}."),
+            CreatePlantilla(NotificacionTipos.TestimonioRecibidoAdmin, NotificacionCanales.Interna, "Nuevo testimonio recibido", "<p>{{NombreCliente}} dejo un testimonio con calificacion {{Calificacion}}.</p>", "{{NombreCliente}} dejo un testimonio con calificacion {{Calificacion}}."),
+            CreatePlantilla(NotificacionTipos.CarritoAbandonadoCliente, NotificacionCanales.Email, "Tenes fotos pendientes en tu carrito", "<p>Hola {{NombreCliente}}, tu carrito tiene {{CantidadItems}} items por {{Total}}. {{Link}}</p>", "Tu carrito tiene {{CantidadItems}} items por {{Total}}."),
+            CreatePlantilla(NotificacionTipos.PromocionActivaAdmin, NotificacionCanales.Interna, "Promocion activa", "<p>La promocion {{Titulo}} esta activa. Tipo: {{Tipo}}.</p>", "La promocion {{Titulo}} esta activa.")
         };
 
         foreach (var template in templates)
@@ -774,6 +820,21 @@ public static class DbInitializer
         await UpsertFotoPrivadaAsync(dbContext, SeedIds.FotoPrivadaClienteDemo002, sesionPrivada.Id, clienteDemo.Id, "privada-familiar-002.jpg", 2200m, now, cancellationToken);
 
         await SaveSeedChangesAsync(dbContext, logger, "Seed: fotos privadas", cancellationToken);
+
+        LogSeedBlock(logger, "Seed: ventas avanzadas fase 5");
+        await UpsertCuponDescuentoAsync(dbContext, SeedIds.CuponBienvenida10, "BIENVENIDA10", "10% de bienvenida para primera compra.", CuponTipos.Porcentaje, 10m, 5000m, 8000m, now.AddMonths(-1), now.AddMonths(6), 300, 1, true, true, now, cancellationToken);
+        await UpsertCuponDescuentoAsync(dbContext, SeedIds.CuponEvento15, "EVENTO15", "15% para compras de galerias de evento.", CuponTipos.Porcentaje, 15m, 10000m, 12000m, now.AddMonths(-1), now.AddMonths(4), 150, 2, false, true, now, cancellationToken);
+        await UpsertCuponDescuentoAsync(dbContext, SeedIds.CuponSesion5000, "SESION5000", "Descuento fijo para sesiones privadas.", CuponTipos.MontoFijo, 5000m, 20000m, null, now.AddMonths(-1), now.AddMonths(5), 100, 1, false, true, now, cancellationToken);
+
+        await UpsertPromocionAsync(dbContext, SeedIds.PromocionTemporada, "Temporada de eventos", "Promocion demo para eventos sociales publicados.", "https://placehold.co/1200x600?text=Eventos", PromocionTipos.Temporada, now.AddDays(-5), now.AddMonths(2), true, true, 1, null, SeedIds.ServicioCasamientos, null, now, cancellationToken);
+        await UpsertPromocionAsync(dbContext, SeedIds.PromocionBienvenida, "Bienvenida 10", "Usa BIENVENIDA10 en tu primera compra.", "https://placehold.co/1200x600?text=Bienvenida10", PromocionTipos.Cupon, now.AddDays(-2), now.AddMonths(3), true, true, 2, SeedIds.CuponBienvenida10, null, null, now, cancellationToken);
+        await UpsertPromocionAsync(dbContext, SeedIds.PromocionSesionPrivada, "Sesion privada destacada", "Beneficio para galerias y sesiones privadas.", "https://placehold.co/1200x600?text=Sesion+privada", PromocionTipos.Servicio, now.AddDays(-1), now.AddMonths(2), true, false, 3, SeedIds.CuponSesion5000, SeedIds.ServicioSesionesPrivadas, null, now, cancellationToken);
+
+        await UpsertTestimonioAsync(dbContext, SeedIds.TestimonioSofia, "Sofia Martinez", "sofia.martinez@example.com", "La galeria fue facil de revisar y las descargas llegaron perfectas.", 5, true, true, SeedIds.ClienteSofia, SeedIds.PedidoBodaPagado, SeedIds.ServicioCasamientos, SeedIds.EventoBoda, now.AddDays(-8), cancellationToken);
+        await UpsertTestimonioAsync(dbContext, SeedIds.TestimonioValentina, "Valentina Rios", "valentina.rios@example.com", "Nos encanto poder elegir fotos favoritas desde la galeria.", 5, true, true, SeedIds.ClienteValentina, null, SeedIds.ServicioCumpleanos, SeedIds.EventoQuince, now.AddDays(-6), cancellationToken);
+        await UpsertTestimonioAsync(dbContext, SeedIds.TestimonioMateo, "Mateo Alvarez", "mateo.alvarez@example.com", "El material del workshop quedo profesional y listo para compartir.", 4, true, false, SeedIds.ClienteMateo, SeedIds.PedidoWorkshopPagado, SeedIds.ServicioCorporativo, SeedIds.EventoCorporativo, now.AddDays(-4), cancellationToken);
+        await UpsertTestimonioAsync(dbContext, SeedIds.TestimonioClienteDemo, "Cliente Demo", "cliente@fotografia.com", "La sesion privada demo muestra muy bien el flujo de compra.", 5, false, false, clienteDemo.Id, null, SeedIds.ServicioSesionesPrivadas, null, now.AddDays(-1), cancellationToken);
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: ventas avanzadas fase 5", cancellationToken);
     }
 
     private static async Task<Usuario> UpsertUserAsync(
@@ -943,6 +1004,8 @@ public static class DbInitializer
         foto.TieneMarcaAgua = true;
         foto.Procesada = true;
         foto.Activa = true;
+        foto.Destacado = nombreArchivo.Contains("001", StringComparison.OrdinalIgnoreCase);
+        foto.OrdenDestacado = foto.Destacado ? 1 : null;
         foto.SubidaEnUtc = now;
         foto.FechaActualizacionUtc = now;
 
@@ -979,7 +1042,9 @@ public static class DbInitializer
         pedido.EventoId = eventoId;
         pedido.Estado = estado;
         pedido.Moneda = moneda;
-        pedido.Total = fotos.Sum(x => x.PrecioUnitario);
+        pedido.Subtotal = fotos.Sum(x => x.PrecioUnitario);
+        pedido.DescuentoTotal = 0;
+        pedido.Total = pedido.Subtotal;
         pedido.ActualizadoEnUtc = now;
 
         var fotoIds = fotos.Select(x => x.Id).ToHashSet();
@@ -1130,6 +1195,8 @@ public static class DbInitializer
         servicio.CantidadFotosIncluidas = cantidadFotosIncluidas;
         servicio.ImagenUrl = imagenUrl;
         servicio.Activo = true;
+        servicio.Destacado = orden <= 3;
+        servicio.OrdenDestacado = orden <= 3 ? orden : null;
         servicio.Orden = orden;
         servicio.FechaActualizacionUtc = now;
     }
@@ -1393,6 +1460,8 @@ public static class DbInitializer
         paquete.Precio = precio;
         paquete.IncluyeTodasLasFotos = incluyeTodasLasFotos;
         paquete.Activo = true;
+        paquete.Destacado = incluyeTodasLasFotos;
+        paquete.OrdenDestacado = incluyeTodasLasFotos ? 1 : null;
         paquete.FechaActualizacionUtc = now;
     }
 
@@ -1473,6 +1542,146 @@ public static class DbInitializer
         foto.PrecioUnitario = precioUnitario;
         foto.Activa = true;
         foto.FechaActualizacionUtc = now;
+    }
+
+    private static async Task UpsertCuponDescuentoAsync(
+        AppDbContext dbContext,
+        Guid id,
+        string codigo,
+        string descripcion,
+        string tipoDescuento,
+        decimal valorDescuento,
+        decimal? montoMinimoCompra,
+        decimal? montoMaximoDescuento,
+        DateTime? fechaInicioUtc,
+        DateTime? fechaFinUtc,
+        int? usosMaximos,
+        int? usosMaximosPorUsuario,
+        bool soloPrimerCompra,
+        bool activo,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var normalizedCodigo = codigo.Trim().ToUpperInvariant();
+        var cupon = await dbContext.CuponesDescuento.FirstOrDefaultAsync(x => x.Codigo == normalizedCodigo, cancellationToken);
+        if (cupon is null)
+        {
+            cupon = new CuponDescuento
+            {
+                Id = id,
+                Codigo = normalizedCodigo,
+                TipoDescuento = tipoDescuento,
+                FechaCreacionUtc = now
+            };
+
+            dbContext.CuponesDescuento.Add(cupon);
+        }
+
+        cupon.Codigo = normalizedCodigo;
+        cupon.Descripcion = descripcion;
+        cupon.TipoDescuento = tipoDescuento;
+        cupon.ValorDescuento = valorDescuento;
+        cupon.MontoMinimoCompra = montoMinimoCompra;
+        cupon.MontoMaximoDescuento = montoMaximoDescuento;
+        cupon.FechaInicioUtc = fechaInicioUtc;
+        cupon.FechaFinUtc = fechaFinUtc;
+        cupon.UsosMaximos = usosMaximos;
+        cupon.UsosMaximosPorUsuario = usosMaximosPorUsuario;
+        cupon.SoloPrimerCompra = soloPrimerCompra;
+        cupon.Activo = activo;
+        cupon.FechaActualizacionUtc = now;
+    }
+
+    private static async Task UpsertPromocionAsync(
+        AppDbContext dbContext,
+        Guid id,
+        string titulo,
+        string descripcion,
+        string imagenUrl,
+        string tipo,
+        DateTime? fechaInicioUtc,
+        DateTime? fechaFinUtc,
+        bool activa,
+        bool destacada,
+        int orden,
+        Guid? cuponDescuentoId,
+        Guid? servicioFotografiaId,
+        Guid? eventoId,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var promocion = await dbContext.Promociones.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (promocion is null)
+        {
+            promocion = new Promocion
+            {
+                Id = id,
+                Titulo = titulo,
+                Tipo = tipo,
+                FechaCreacionUtc = now
+            };
+
+            dbContext.Promociones.Add(promocion);
+        }
+
+        promocion.Titulo = titulo;
+        promocion.Descripcion = descripcion;
+        promocion.ImagenUrl = imagenUrl;
+        promocion.Tipo = tipo;
+        promocion.FechaInicioUtc = fechaInicioUtc;
+        promocion.FechaFinUtc = fechaFinUtc;
+        promocion.Activa = activa;
+        promocion.Destacada = destacada;
+        promocion.Orden = orden;
+        promocion.CuponDescuentoId = cuponDescuentoId;
+        promocion.ServicioFotografiaId = servicioFotografiaId;
+        promocion.EventoId = eventoId;
+        promocion.FechaActualizacionUtc = now;
+    }
+
+    private static async Task UpsertTestimonioAsync(
+        AppDbContext dbContext,
+        Guid id,
+        string nombreCliente,
+        string emailCliente,
+        string texto,
+        int calificacion,
+        bool publicado,
+        bool destacado,
+        Guid? clienteId,
+        Guid? pedidoId,
+        Guid? servicioFotografiaId,
+        Guid? eventoId,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var testimonio = await dbContext.Testimonios.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (testimonio is null)
+        {
+            testimonio = new Testimonio
+            {
+                Id = id,
+                NombreCliente = nombreCliente,
+                Texto = texto,
+                FechaCreacionUtc = now
+            };
+
+            dbContext.Testimonios.Add(testimonio);
+        }
+
+        testimonio.NombreCliente = nombreCliente;
+        testimonio.EmailCliente = emailCliente.Trim().ToLowerInvariant();
+        testimonio.Texto = texto;
+        testimonio.Calificacion = calificacion;
+        testimonio.ImagenUrl = $"https://placehold.co/400x400?text={Uri.EscapeDataString(nombreCliente)}";
+        testimonio.Publicado = publicado;
+        testimonio.Destacado = destacado;
+        testimonio.Activo = true;
+        testimonio.ClienteId = clienteId;
+        testimonio.PedidoId = pedidoId;
+        testimonio.ServicioFotografiaId = servicioFotografiaId;
+        testimonio.EventoId = eventoId;
+        testimonio.FechaActualizacionUtc = now;
     }
 
     private static async Task UpsertPagoAsync(
@@ -1694,6 +1903,8 @@ public static class DbInitializer
             TieneMarcaAgua = true,
             Procesada = true,
             Activa = true,
+            Destacado = nombreArchivo.Contains("001", StringComparison.OrdinalIgnoreCase),
+            OrdenDestacado = nombreArchivo.Contains("001", StringComparison.OrdinalIgnoreCase) ? 1 : null,
             SubidaEnUtc = SeedClock.Now.AddDays(-10)
         };
     }
@@ -1713,6 +1924,8 @@ public static class DbInitializer
         target.TieneMarcaAgua = source.TieneMarcaAgua;
         target.Procesada = source.Procesada;
         target.Activa = source.Activa;
+        target.Destacado = source.Destacado;
+        target.OrdenDestacado = source.OrdenDestacado;
         target.SubidaEnUtc = source.SubidaEnUtc;
         target.FechaActualizacionUtc = SeedClock.Now;
     }
@@ -1999,5 +2212,15 @@ public static class DbInitializer
         public static readonly Guid NotaInternaClienteDemo = Guid.Parse("f1000000-0000-0000-0000-000000000101");
         public static readonly Guid NotaInternaPedidoDemo = Guid.Parse("f1000000-0000-0000-0000-000000000102");
         public static readonly Guid NotaInternaSolicitudDemo = Guid.Parse("f1000000-0000-0000-0000-000000000103");
+        public static readonly Guid CuponBienvenida10 = Guid.Parse("f2000000-0000-0000-0000-000000000101");
+        public static readonly Guid CuponEvento15 = Guid.Parse("f2000000-0000-0000-0000-000000000102");
+        public static readonly Guid CuponSesion5000 = Guid.Parse("f2000000-0000-0000-0000-000000000103");
+        public static readonly Guid PromocionTemporada = Guid.Parse("f3000000-0000-0000-0000-000000000101");
+        public static readonly Guid PromocionBienvenida = Guid.Parse("f3000000-0000-0000-0000-000000000102");
+        public static readonly Guid PromocionSesionPrivada = Guid.Parse("f3000000-0000-0000-0000-000000000103");
+        public static readonly Guid TestimonioSofia = Guid.Parse("f4000000-0000-0000-0000-000000000101");
+        public static readonly Guid TestimonioValentina = Guid.Parse("f4000000-0000-0000-0000-000000000102");
+        public static readonly Guid TestimonioMateo = Guid.Parse("f4000000-0000-0000-0000-000000000103");
+        public static readonly Guid TestimonioClienteDemo = Guid.Parse("f4000000-0000-0000-0000-000000000104");
     }
 }

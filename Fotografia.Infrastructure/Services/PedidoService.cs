@@ -135,11 +135,14 @@ public sealed class PedidoService(
             return ApiResponse<PedidoResponseDto>.Fail("Una o mas fotos no existen, no pertenecen al evento o no estan activas.");
         }
 
+        var subtotal = fotos.Sum(x => x.PrecioUnitario);
         var pedido = new Pedido
         {
             EventoId = request.EventoId,
             ClienteId = request.ClienteId,
-            Total = fotos.Sum(x => x.PrecioUnitario),
+            Subtotal = subtotal,
+            DescuentoTotal = 0,
+            Total = subtotal,
             PedidoFotos = fotos.Select(foto => new PedidoFoto
             {
                 FotoId = foto.Id,

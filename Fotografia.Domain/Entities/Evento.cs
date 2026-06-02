@@ -29,4 +29,6 @@ public sealed class Evento
     public ICollection<ComentarioEvento> Comentarios { get; set; } = [];
     public ICollection<EventoFavorito> Favoritos { get; set; } = [];
     public ICollection<PaqueteEvento> Paquetes { get; set; } = [];
+    public ICollection<Promocion> Promociones { get; set; } = [];
+    public ICollection<Testimonio> Testimonios { get; set; } = [];
 }

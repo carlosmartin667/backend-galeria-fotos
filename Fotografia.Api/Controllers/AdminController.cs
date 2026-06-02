@@ -14,6 +14,7 @@ public sealed class AdminController(
     IAdminPerfilService adminPerfilService,
     IAdminDashboardService dashboardService,
     IAdminOperacionesService operacionesService,
+    IAdminVentasService ventasService,
     IFotoService fotoService) : ControllerBase
 {
     [HttpGet("dashboard")]
@@ -37,6 +38,14 @@ public sealed class AdminController(
     public async Task<IActionResult> GetOperacionesPendientes(CancellationToken cancellationToken)
     {
         var result = await operacionesService.GetPendientesAsync(cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpGet("ventas/resumen")]
+    [Authorize(Roles = SistemaRoles.Admin)]
+    public async Task<IActionResult> GetVentasResumen(CancellationToken cancellationToken)
+    {
+        var result = await ventasService.GetResumenAsync(cancellationToken);
         return this.ToActionResult(result);
     }
 

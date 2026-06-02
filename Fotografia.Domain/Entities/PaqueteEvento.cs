@@ -10,6 +10,8 @@ public sealed class PaqueteEvento
     public string? Descripcion { get; set; }
     public decimal Precio { get; set; }
     public bool IncluyeTodasLasFotos { get; set; } = true;
+    public bool Destacado { get; set; }
+    public int? OrdenDestacado { get; set; }
     public bool Activo { get; set; } = true;
     public DateTime FechaCreacionUtc { get; set; } = DateTime.UtcNow;
     public DateTime? FechaActualizacionUtc { get; set; }

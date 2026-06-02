@@ -42,7 +42,11 @@ public sealed class PedidoResponseDto
     public Guid? EventoId { get; set; }
     public Guid ClienteId { get; set; }
     public string Estado { get; set; } = string.Empty;
+    public decimal Subtotal { get; set; }
+    public decimal DescuentoTotal { get; set; }
     public decimal Total { get; set; }
+    public string? CuponCodigo { get; set; }
+    public Guid? CuponDescuentoId { get; set; }
     public string Moneda { get; set; } = string.Empty;
     public string? MercadoPagoPreferenceId { get; set; }
     public DateTime CreadoEnUtc { get; set; }

@@ -361,6 +361,8 @@ public sealed class FotoService(
         foto.TieneMarcaAgua = request.TieneMarcaAgua ?? !string.IsNullOrWhiteSpace(request.MarcaAguaStorageKey);
         foto.Procesada = request.Procesada ?? foto.Procesada;
         foto.Activa = request.Activa;
+        foto.Destacado = request.Destacado;
+        foto.OrdenDestacado = request.OrdenDestacado;
         foto.FechaActualizacionUtc = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -548,6 +550,8 @@ public sealed class FotoService(
         foto.PrecioUnitario = request.PrecioUnitario;
         foto.TieneMarcaAgua = request.TieneMarcaAgua ?? !string.IsNullOrWhiteSpace(request.MarcaAguaStorageKey);
         foto.Procesada = request.Procesada ?? false;
+        foto.Destacado = request.Destacado;
+        foto.OrdenDestacado = request.OrdenDestacado;
         foto.Activa = true;
         foto.SubidaEnUtc = DateTime.UtcNow;
     }

@@ -1,4 +1,5 @@
 using Fotografia.Api.Helpers;
+using Fotografia.Application.DTOs.Carrito;
 using Fotografia.Application.Security;
 using Fotografia.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -50,6 +51,20 @@ public sealed class CarritoController(ICarritoService carritoService) : Controll
     public async Task<IActionResult> Vaciar(CancellationToken cancellationToken)
     {
         var result = await carritoService.VaciarAsync(cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpPost("cupon")]
+    public async Task<IActionResult> AplicarCupon(AplicarCuponCarritoRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await carritoService.AplicarCuponAsync(request, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpDelete("cupon")]
+    public async Task<IActionResult> QuitarCupon(CancellationToken cancellationToken)
+    {
+        var result = await carritoService.QuitarCuponAsync(cancellationToken);
         return this.ToActionResult(result);
     }
 

@@ -31,6 +31,8 @@ public sealed class CrearFotoMetadataRequestDto
     public decimal PrecioUnitario { get; set; }
     public bool? TieneMarcaAgua { get; set; }
     public bool? Procesada { get; set; }
+    public bool Destacado { get; set; }
+    public int? OrdenDestacado { get; set; }
 }
 
 public sealed class ActualizarFotoRequestDto
@@ -49,6 +51,8 @@ public sealed class ActualizarFotoRequestDto
     public bool? TieneMarcaAgua { get; set; }
     public bool? Procesada { get; set; }
     public bool Activa { get; set; } = true;
+    public bool Destacado { get; set; }
+    public int? OrdenDestacado { get; set; }
 }
 
 public sealed class FotoResponseDto
@@ -67,6 +71,8 @@ public sealed class FotoResponseDto
     public bool TieneMarcaAgua { get; set; }
     public bool Procesada { get; set; }
     public bool Activa { get; set; }
+    public bool Destacado { get; set; }
+    public int? OrdenDestacado { get; set; }
     public DateTime SubidaEnUtc { get; set; }
     public DateTime? FechaActualizacionUtc { get; set; }
 }

@@ -12,5 +12,7 @@ public interface ICarritoService
     Task<ApiResponse<CarritoResponseDto>> AddFotoPrivadaAsync(Guid fotoPrivadaId, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> DeleteItemAsync(Guid itemId, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> VaciarAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<CarritoResponseDto>> AplicarCuponAsync(AplicarCuponCarritoRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<CarritoResponseDto>> QuitarCuponAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<PedidoResponseDto>> CrearPedidoAsync(CancellationToken cancellationToken = default);
 }

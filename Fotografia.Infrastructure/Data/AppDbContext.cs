@@ -34,6 +34,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<FotoFavorita> FotosFavoritas => Set<FotoFavorita>();
     public DbSet<Notificacion> Notificaciones => Set<Notificacion>();
     public DbSet<PlantillaNotificacion> PlantillasNotificacion => Set<PlantillaNotificacion>();
+    public DbSet<CuponDescuento> CuponesDescuento => Set<CuponDescuento>();
+    public DbSet<CuponUso> CuponUsos => Set<CuponUso>();
+    public DbSet<Promocion> Promociones => Set<Promocion>();
+    public DbSet<Testimonio> Testimonios => Set<Testimonio>();
+    public DbSet<CarritoAbandonadoRegistro> CarritoAbandonadoRegistros => Set<CarritoAbandonadoRegistro>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -95,6 +100,122 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.CuerpoHtml).HasMaxLength(4000).IsRequired();
             entity.Property(x => x.CuerpoTexto).HasMaxLength(4000);
             entity.Property(x => x.Activa).HasDefaultValue(true);
+        });
+
+        modelBuilder.Entity<CuponDescuento>(entity =>
+        {
+            entity.ToTable("CuponesDescuento");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.Codigo).IsUnique();
+            entity.HasIndex(x => new { x.Activo, x.FechaFinUtc });
+            entity.Property(x => x.Codigo).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(500);
+            entity.Property(x => x.TipoDescuento).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.ValorDescuento).HasPrecision(18, 2);
+            entity.Property(x => x.MontoMinimoCompra).HasPrecision(18, 2);
+            entity.Property(x => x.MontoMaximoDescuento).HasPrecision(18, 2);
+            entity.Property(x => x.Activo).HasDefaultValue(true);
+        });
+
+        modelBuilder.Entity<CuponUso>(entity =>
+        {
+            entity.ToTable("CuponUsos");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.CuponDescuentoId, x.ClienteId });
+            entity.HasIndex(x => x.PedidoId);
+            entity.Property(x => x.Codigo).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.MontoDescuento).HasPrecision(18, 2);
+            entity.Property(x => x.Confirmado).HasDefaultValue(false);
+            entity.HasOne(x => x.CuponDescuento)
+                .WithMany(x => x.Usos)
+                .HasForeignKey(x => x.CuponDescuentoId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Pedido)
+                .WithMany(x => x.CuponUsos)
+                .HasForeignKey(x => x.PedidoId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Cliente)
+                .WithMany(x => x.CuponUsos)
+                .HasForeignKey(x => x.ClienteId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Usuario)
+                .WithMany(x => x.CuponUsos)
+                .HasForeignKey(x => x.UsuarioId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Promocion>(entity =>
+        {
+            entity.ToTable("Promociones");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Activa, x.Destacada, x.Orden });
+            entity.Property(x => x.Titulo).HasMaxLength(180).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(1200);
+            entity.Property(x => x.ImagenUrl).HasMaxLength(1000);
+            entity.Property(x => x.Tipo).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Activa).HasDefaultValue(true);
+            entity.HasOne(x => x.CuponDescuento)
+                .WithMany(x => x.Promociones)
+                .HasForeignKey(x => x.CuponDescuentoId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.ServicioFotografia)
+                .WithMany(x => x.Promociones)
+                .HasForeignKey(x => x.ServicioFotografiaId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Evento)
+                .WithMany(x => x.Promociones)
+                .HasForeignKey(x => x.EventoId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Testimonio>(entity =>
+        {
+            entity.ToTable("Testimonios");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Publicado, x.Destacado });
+            entity.Property(x => x.NombreCliente).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.EmailCliente).HasMaxLength(256);
+            entity.Property(x => x.Texto).HasMaxLength(2000).IsRequired();
+            entity.Property(x => x.ImagenUrl).HasMaxLength(1000);
+            entity.Property(x => x.Activo).HasDefaultValue(true);
+            entity.HasOne(x => x.Cliente)
+                .WithMany(x => x.Testimonios)
+                .HasForeignKey(x => x.ClienteId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Pedido)
+                .WithMany()
+                .HasForeignKey(x => x.PedidoId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.ServicioFotografia)
+                .WithMany(x => x.Testimonios)
+                .HasForeignKey(x => x.ServicioFotografiaId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Evento)
+                .WithMany(x => x.Testimonios)
+                .HasForeignKey(x => x.EventoId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CarritoAbandonadoRegistro>(entity =>
+        {
+            entity.ToTable("CarritoAbandonadoRegistros");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Estado, x.FechaDetectadoUtc });
+            entity.HasIndex(x => x.CarritoCompraId);
+            entity.Property(x => x.Estado).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Activo).HasDefaultValue(true);
+            entity.HasOne(x => x.CarritoCompra)
+                .WithMany(x => x.RegistrosAbandono)
+                .HasForeignKey(x => x.CarritoCompraId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Usuario)
+                .WithMany(x => x.CarritosAbandonados)
+                .HasForeignKey(x => x.UsuarioId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Cliente)
+                .WithMany(x => x.CarritosAbandonados)
+                .HasForeignKey(x => x.ClienteId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<PerfilFotografa>(entity =>
@@ -160,6 +281,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.PrecioDesde).HasPrecision(18, 2);
             entity.Property(x => x.DuracionEstimada).HasMaxLength(120);
             entity.Property(x => x.ImagenUrl).HasMaxLength(1000);
+            entity.Property(x => x.Destacado).HasDefaultValue(false);
             entity.Property(x => x.Activo).HasDefaultValue(true);
         });
 
@@ -269,6 +391,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.PrecioUnitario).HasPrecision(18, 2);
             entity.Property(x => x.TieneMarcaAgua).HasDefaultValue(false);
             entity.Property(x => x.Procesada).HasDefaultValue(false);
+            entity.Property(x => x.Destacado).HasDefaultValue(false);
             entity.HasOne(x => x.Evento)
                 .WithMany(x => x.Fotos)
                 .HasForeignKey(x => x.EventoId)
@@ -283,6 +406,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.Nombre).HasMaxLength(180).IsRequired();
             entity.Property(x => x.Descripcion).HasMaxLength(1000);
             entity.Property(x => x.Precio).HasPrecision(18, 2);
+            entity.Property(x => x.Destacado).HasDefaultValue(false);
             entity.HasOne(x => x.Evento)
                 .WithMany(x => x.Paquetes)
                 .HasForeignKey(x => x.EventoId)
@@ -335,10 +459,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .IsUnique()
                 .HasFilter("[Estado] = 'Activo'");
             entity.Property(x => x.Estado).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.CuponCodigo).HasMaxLength(64);
+            entity.Property(x => x.Activo).HasDefaultValue(true);
             entity.HasOne(x => x.Usuario)
                 .WithMany(x => x.CarritosCompra)
                 .HasForeignKey(x => x.UsuarioId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.CuponDescuento)
+                .WithMany(x => x.CarritosCompra)
+                .HasForeignKey(x => x.CuponDescuentoId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<CarritoItem>(entity =>
@@ -381,9 +511,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.ToTable("Pedidos");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Estado).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Subtotal).HasPrecision(18, 2);
+            entity.Property(x => x.DescuentoTotal).HasPrecision(18, 2);
             entity.Property(x => x.Total).HasPrecision(18, 2);
             entity.Property(x => x.Moneda).HasMaxLength(8).IsRequired();
             entity.Property(x => x.MercadoPagoPreferenceId).HasMaxLength(160);
+            entity.Property(x => x.CuponCodigo).HasMaxLength(64);
             entity.HasOne(x => x.Evento)
                 .WithMany(x => x.Pedidos)
                 .HasForeignKey(x => x.EventoId)
@@ -392,6 +525,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .WithMany(x => x.Pedidos)
                 .HasForeignKey(x => x.ClienteId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.CuponDescuento)
+                .WithMany(x => x.Pedidos)
+                .HasForeignKey(x => x.CuponDescuentoId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<PedidoEstadoHistorial>(entity =>

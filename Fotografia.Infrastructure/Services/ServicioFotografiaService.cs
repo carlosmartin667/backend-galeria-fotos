@@ -19,7 +19,9 @@ public sealed class ServicioFotografiaService(
         var servicios = await dbContext.ServiciosFotografia
             .AsNoTracking()
             .Where(x => x.Activo)
-            .OrderBy(x => x.Orden)
+            .OrderByDescending(x => x.Destacado)
+            .ThenBy(x => x.OrdenDestacado ?? int.MaxValue)
+            .ThenBy(x => x.Orden)
             .ThenBy(x => x.Nombre)
             .ToListAsync(cancellationToken);
 
@@ -76,6 +78,8 @@ public sealed class ServicioFotografiaService(
             CantidadFotosIncluidas = request.CantidadFotosIncluidas,
             ImagenUrl = Normalize(request.ImagenUrl),
             Activo = request.Activo,
+            Destacado = request.Destacado,
+            OrdenDestacado = request.OrdenDestacado,
             Orden = request.Orden,
             FechaCreacionUtc = DateTime.UtcNow
         };
@@ -111,6 +115,8 @@ public sealed class ServicioFotografiaService(
         servicio.CantidadFotosIncluidas = request.CantidadFotosIncluidas;
         servicio.ImagenUrl = Normalize(request.ImagenUrl);
         servicio.Activo = request.Activo;
+        servicio.Destacado = request.Destacado;
+        servicio.OrdenDestacado = request.OrdenDestacado;
         servicio.Orden = request.Orden;
         servicio.FechaActualizacionUtc = DateTime.UtcNow;
 

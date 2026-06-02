@@ -50,6 +50,7 @@ public static class DependencyInjection
         services.AddScoped<IAdminPerfilService, AdminPerfilService>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();
         services.AddScoped<IAdminOperacionesService, AdminOperacionesService>();
+        services.AddScoped<IAdminVentasService, AdminVentasService>();
         services.AddScoped<IPerfilFotografaService, PerfilFotografaService>();
         services.AddScoped<ISitioPublicoService, SitioPublicoService>();
         services.AddScoped<IPortfolioService, PortfolioService>();
@@ -59,6 +60,11 @@ public static class DependencyInjection
         services.AddScoped<IAgendaService, AgendaService>();
         services.AddScoped<IPaqueteEventoService, PaqueteEventoService>();
         services.AddScoped<ICarritoService, CarritoService>();
+        services.AddScoped<ICuponService, CuponService>();
+        services.AddScoped<IPromocionService, PromocionService>();
+        services.AddScoped<ITestimonioService, TestimonioService>();
+        services.AddScoped<ICarritoAbandonadoService, CarritoAbandonadoService>();
+        services.AddScoped<IReporteVentasService, ReporteVentasService>();
         services.AddScoped<ISesionPrivadaService, SesionPrivadaService>();
         services.AddScoped<IComentarioEventoService, ComentarioEventoService>();
         services.AddScoped<IComentarioFotoService, ComentarioFotoService>();

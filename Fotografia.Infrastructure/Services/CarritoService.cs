@@ -1,5 +1,6 @@
 using AutoMapper;
 using Fotografia.Application.DTOs.Carrito;
+using Fotografia.Application.DTOs.Cupones;
 using Fotografia.Application.DTOs.Notificaciones;
 using Fotografia.Application.DTOs.Pedidos;
 using Fotografia.Application.Helpers;
@@ -17,6 +18,8 @@ public sealed class CarritoService(
     IMapper mapper,
     ICurrentUserService currentUser,
     INotificacionService notificacionService,
+    ICuponService cuponService,
+    ICarritoAbandonadoService carritoAbandonadoService,
     ILogger<CarritoService> logger) : ICarritoService
 {
     public async Task<ApiResponse<CarritoResponseDto>> GetActivoAsync(CancellationToken cancellationToken = default)
@@ -27,7 +30,7 @@ public sealed class CarritoService(
         }
 
         var carrito = await GetOrCreateActiveCartAsync(currentUser.UserId.Value, cancellationToken);
-        return ApiResponse<CarritoResponseDto>.Ok(MapCarrito(carrito));
+        return ApiResponse<CarritoResponseDto>.Ok(await MapCarritoAsync(carrito, cancellationToken));
     }
 
     public async Task<ApiResponse<CarritoResponseDto>> AddFotoEventoAsync(
@@ -63,7 +66,7 @@ public sealed class CarritoService(
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        return ApiResponse<CarritoResponseDto>.Ok(MapCarrito(carrito), "Foto agregada al carrito.");
+        return ApiResponse<CarritoResponseDto>.Ok(await MapCarritoAsync(carrito, cancellationToken), "Foto agregada al carrito.");
     }
 
     public async Task<ApiResponse<CarritoResponseDto>> AddPaqueteEventoAsync(
@@ -99,7 +102,7 @@ public sealed class CarritoService(
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        return ApiResponse<CarritoResponseDto>.Ok(MapCarrito(carrito), "Paquete agregado al carrito.");
+        return ApiResponse<CarritoResponseDto>.Ok(await MapCarritoAsync(carrito, cancellationToken), "Paquete agregado al carrito.");
     }
 
     public async Task<ApiResponse<CarritoResponseDto>> AddFotoPrivadaAsync(
@@ -141,7 +144,7 @@ public sealed class CarritoService(
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        return ApiResponse<CarritoResponseDto>.Ok(MapCarrito(carrito), "Foto privada agregada al carrito.");
+        return ApiResponse<CarritoResponseDto>.Ok(await MapCarritoAsync(carrito, cancellationToken), "Foto privada agregada al carrito.");
     }
 
     public async Task<ApiResponse<bool>> DeleteItemAsync(Guid itemId, CancellationToken cancellationToken = default)
@@ -187,10 +190,82 @@ public sealed class CarritoService(
         }
 
         dbContext.CarritoItems.RemoveRange(carrito.Items);
+        carrito.CuponCodigo = null;
+        carrito.CuponDescuentoId = null;
         carrito.FechaActualizacionUtc = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return ApiResponse<bool>.Ok(true, "Carrito vaciado.");
+    }
+
+    public async Task<ApiResponse<CarritoResponseDto>> AplicarCuponAsync(
+        AplicarCuponCarritoRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (currentUser.UserId is null)
+        {
+            return ApiResponse<CarritoResponseDto>.Forbidden("Debe iniciar sesion para usar el carrito.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Codigo))
+        {
+            return ApiResponse<CarritoResponseDto>.Fail("Codigo de cupon requerido.");
+        }
+
+        var cliente = await dbContext.Clientes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.UsuarioId == currentUser.UserId.Value, cancellationToken);
+        if (cliente is null)
+        {
+            return ApiResponse<CarritoResponseDto>.Fail("El usuario no tiene un cliente asociado.");
+        }
+
+        var carrito = await QueryActiveCart(currentUser.UserId.Value)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (carrito is null || carrito.Items.Count == 0)
+        {
+            return ApiResponse<CarritoResponseDto>.Fail("El carrito esta vacio.");
+        }
+
+        var subtotal = CalculateSubtotal(carrito.Items);
+        var validation = await cuponService.ValidarParaClienteAsync(
+            request.Codigo,
+            subtotal,
+            cliente.Id,
+            currentUser.UserId,
+            cancellationToken);
+
+        if (!validation.Success || validation.Data is null || !validation.Data.Valido || validation.Data.CuponDescuentoId is null)
+        {
+            return ApiResponse<CarritoResponseDto>.Fail(
+                validation.Message ?? validation.Data?.Mensaje ?? "Cupon invalido.",
+                validation.StatusCode ?? 400);
+        }
+
+        carrito.CuponCodigo = validation.Data.Codigo;
+        carrito.CuponDescuentoId = validation.Data.CuponDescuentoId;
+        carrito.FechaActualizacionUtc = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await TryEnqueueCuponAplicadoClienteAsync(carrito, cliente, validation.Data, cancellationToken);
+
+        return ApiResponse<CarritoResponseDto>.Ok(await MapCarritoAsync(carrito, cancellationToken), "Cupon aplicado al carrito.");
+    }
+
+    public async Task<ApiResponse<CarritoResponseDto>> QuitarCuponAsync(CancellationToken cancellationToken = default)
+    {
+        if (currentUser.UserId is null)
+        {
+            return ApiResponse<CarritoResponseDto>.Forbidden("Debe iniciar sesion para usar el carrito.");
+        }
+
+        var carrito = await GetOrCreateActiveCartAsync(currentUser.UserId.Value, cancellationToken);
+        carrito.CuponCodigo = null;
+        carrito.CuponDescuentoId = null;
+        carrito.FechaActualizacionUtc = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return ApiResponse<CarritoResponseDto>.Ok(await MapCarritoAsync(carrito, cancellationToken), "Cupon quitado del carrito.");
     }
 
     public async Task<ApiResponse<PedidoResponseDto>> CrearPedidoAsync(CancellationToken cancellationToken = default)
@@ -302,6 +377,31 @@ public sealed class CarritoService(
             }
         }
 
+        var subtotal = pedidoItems.Sum(x => x.Subtotal);
+        decimal descuentoTotal = 0;
+        string? cuponCodigo = null;
+        Guid? cuponDescuentoId = null;
+
+        if (!string.IsNullOrWhiteSpace(carrito.CuponCodigo))
+        {
+            var validation = await cuponService.ValidarParaClienteAsync(
+                carrito.CuponCodigo,
+                subtotal,
+                cliente.Id,
+                currentUser.UserId,
+                cancellationToken);
+
+            if (!validation.Success || validation.Data is null || !validation.Data.Valido || validation.Data.CuponDescuentoId is null)
+            {
+                return ApiResponse<PedidoResponseDto>.Fail(
+                    validation.Message ?? validation.Data?.Mensaje ?? "El cupon aplicado ya no es valido.");
+            }
+
+            descuentoTotal = validation.Data.Descuento;
+            cuponCodigo = validation.Data.Codigo;
+            cuponDescuentoId = validation.Data.CuponDescuentoId;
+        }
+
         var pedido = new Pedido
         {
             ClienteId = cliente.Id,
@@ -310,14 +410,32 @@ public sealed class CarritoService(
             Moneda = "ARS",
             CreadoEnUtc = DateTime.UtcNow,
             PedidoItems = pedidoItems,
-            Total = pedidoItems.Sum(x => x.Subtotal)
+            Subtotal = subtotal,
+            DescuentoTotal = descuentoTotal,
+            Total = Math.Max(0, subtotal - descuentoTotal),
+            CuponCodigo = cuponCodigo,
+            CuponDescuentoId = cuponDescuentoId
         };
 
         dbContext.Pedidos.Add(pedido);
         carrito.Estado = CarritoEstados.Convertido;
+        carrito.Activo = false;
         carrito.FechaActualizacionUtc = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        if (cuponDescuentoId is Guid appliedCouponId && descuentoTotal > 0 && cuponCodigo is not null)
+        {
+            await cuponService.RegistrarUsoPendienteAsync(
+                appliedCouponId,
+                pedido.Id,
+                cliente.Id,
+                currentUser.UserId,
+                cuponCodigo,
+                descuentoTotal,
+                cancellationToken);
+        }
+
+        await carritoAbandonadoService.MarcarRecuperadoPorCarritoAsync(carrito.Id, cancellationToken);
         await TryEnqueuePedidoCreadoAsync(pedido, cliente, cancellationToken);
 
         var created = await QueryPedido(pedido.Id).FirstAsync(cancellationToken);
@@ -339,6 +457,7 @@ public sealed class CarritoService(
         {
             UsuarioId = usuarioId,
             Estado = CarritoEstados.Activo,
+            Activo = true,
             FechaCreacionUtc = DateTime.UtcNow
         };
 
@@ -352,7 +471,7 @@ public sealed class CarritoService(
     {
         return dbContext.CarritosCompra
             .Include(x => x.Items)
-            .Where(x => x.UsuarioId == usuarioId && x.Estado == CarritoEstados.Activo);
+            .Where(x => x.UsuarioId == usuarioId && x.Estado == CarritoEstados.Activo && x.Activo);
     }
 
     private IQueryable<Pedido> QueryPedido(Guid pedidoId)
@@ -370,13 +489,79 @@ public sealed class CarritoService(
             .Where(x => x.Id == pedidoId);
     }
 
-    private CarritoResponseDto MapCarrito(CarritoCompra carrito)
+    private async Task<CarritoResponseDto> MapCarritoAsync(CarritoCompra carrito, CancellationToken cancellationToken)
     {
-        carrito.Items = carrito.Items
+        var items = carrito.Items
             .OrderBy(x => x.FechaCreacionUtc)
             .ToList();
 
-        return mapper.Map<CarritoResponseDto>(carrito);
+        var subtotal = CalculateSubtotal(items);
+        var descuento = 0m;
+        CuponAplicadoDto? cuponAplicado = null;
+
+        if (!string.IsNullOrWhiteSpace(carrito.CuponCodigo) && subtotal > 0)
+        {
+            var cliente = await dbContext.Clientes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.UsuarioId == carrito.UsuarioId, cancellationToken);
+
+            if (cliente is not null)
+            {
+                var validation = await cuponService.ValidarParaClienteAsync(
+                    carrito.CuponCodigo,
+                    subtotal,
+                    cliente.Id,
+                    carrito.UsuarioId,
+                    cancellationToken);
+
+                if (validation.Success && validation.Data is { Valido: true, CuponDescuentoId: Guid cuponId })
+                {
+                    descuento = validation.Data.Descuento;
+                    cuponAplicado = new CuponAplicadoDto
+                    {
+                        CuponDescuentoId = cuponId,
+                        Codigo = validation.Data.Codigo,
+                        Descuento = descuento
+                    };
+                }
+            }
+        }
+
+        return new CarritoResponseDto
+        {
+            Id = carrito.Id,
+            UsuarioId = carrito.UsuarioId,
+            Estado = carrito.Estado,
+            Subtotal = subtotal,
+            DescuentoTotal = descuento,
+            Total = Math.Max(0, subtotal - descuento),
+            CuponAplicado = cuponAplicado,
+            FechaCreacionUtc = carrito.FechaCreacionUtc,
+            FechaActualizacionUtc = carrito.FechaActualizacionUtc,
+            Items = items.Select(MapItem).ToList()
+        };
+    }
+
+    private static CarritoItemResponseDto MapItem(CarritoItem item)
+    {
+        return new CarritoItemResponseDto
+        {
+            Id = item.Id,
+            TipoItem = item.TipoItem,
+            FotoId = item.FotoId,
+            PaqueteEventoId = item.PaqueteEventoId,
+            FotoPrivadaId = item.FotoPrivadaId,
+            Cantidad = item.Cantidad,
+            PrecioUnitario = item.PrecioUnitario,
+            Subtotal = item.PrecioUnitario * item.Cantidad,
+            Descripcion = item.Descripcion,
+            FechaCreacionUtc = item.FechaCreacionUtc
+        };
+    }
+
+    private static decimal CalculateSubtotal(IEnumerable<CarritoItem> items)
+    {
+        return items.Sum(x => x.PrecioUnitario * x.Cantidad);
     }
 
     private static PedidoItem CreatePedidoItem(
@@ -437,6 +622,32 @@ public sealed class CarritoService(
             EntidadId = pedido.Id,
             CorrelationKey = $"pedido:{pedido.Id}:creado:cliente",
             Reemplazos = replacements
+        }, cancellationToken);
+    }
+
+    private async Task TryEnqueueCuponAplicadoClienteAsync(
+        CarritoCompra carrito,
+        Cliente cliente,
+        CuponValidacionResponseDto cupon,
+        CancellationToken cancellationToken)
+    {
+        await TryEnqueueTemplateAsync(new EnqueueTemplateNotificacionRequestDto
+        {
+            Codigo = NotificacionTipos.CuponAplicadoCliente,
+            DestinatarioEmail = cliente.Email,
+            UsuarioId = cliente.UsuarioId,
+            EntidadTipo = "Carrito",
+            EntidadId = carrito.Id,
+            CorrelationKey = $"carrito:{carrito.Id}:cupon:{cupon.Codigo}:aplicado",
+            Reemplazos = new Dictionary<string, string?>
+            {
+                ["NombreCliente"] = cliente.Nombre,
+                ["Codigo"] = cupon.Codigo,
+                ["Descuento"] = cupon.Descuento.ToString("0.##"),
+                ["Subtotal"] = cupon.Subtotal.ToString("0.##"),
+                ["Total"] = cupon.TotalFinal.ToString("0.##"),
+                ["Fecha"] = DateTime.UtcNow.ToString("yyyy-MM-dd")
+            }
         }, cancellationToken);
     }
 

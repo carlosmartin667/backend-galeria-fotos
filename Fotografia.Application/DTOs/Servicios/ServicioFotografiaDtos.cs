@@ -12,6 +12,8 @@ public sealed class ServicioFotografiaResponseDto
     public int? CantidadFotosIncluidas { get; set; }
     public string? ImagenUrl { get; set; }
     public bool Activo { get; set; }
+    public bool Destacado { get; set; }
+    public int? OrdenDestacado { get; set; }
     public int Orden { get; set; }
     public DateTime FechaCreacionUtc { get; set; }
     public DateTime? FechaActualizacionUtc { get; set; }
@@ -39,6 +41,8 @@ public sealed class CrearServicioFotografiaRequestDto
     public string? ImagenUrl { get; set; }
 
     public bool Activo { get; set; } = true;
+    public bool Destacado { get; set; }
+    public int? OrdenDestacado { get; set; }
     public int Orden { get; set; }
 }
 
@@ -64,5 +68,7 @@ public sealed class ActualizarServicioFotografiaRequestDto
     public string? ImagenUrl { get; set; }
 
     public bool Activo { get; set; } = true;
+    public bool Destacado { get; set; }
+    public int? OrdenDestacado { get; set; }
     public int Orden { get; set; }
 }

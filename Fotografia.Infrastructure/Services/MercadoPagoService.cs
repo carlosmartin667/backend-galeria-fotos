@@ -23,7 +23,8 @@ public sealed class MercadoPagoService(
     IMapper mapper,
     ILogger<MercadoPagoService> logger,
     ICurrentUserService currentUser,
-    INotificacionService notificacionService) : IMercadoPagoService
+    INotificacionService notificacionService,
+    ICuponService cuponService) : IMercadoPagoService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly MercadoPagoSettings _settings = options.Value;
@@ -223,6 +224,7 @@ public sealed class MercadoPagoService(
 
         if (PedidoEstados.EsPagado(estadoNuevo, pago.Estado))
         {
+            await cuponService.ConfirmarUsoPorPedidoAsync(pedido.Id, cancellationToken);
             await TryEnqueuePagoAprobadoAsync(pedido, pago, cancellationToken);
         }
 
@@ -237,6 +239,14 @@ public sealed class MercadoPagoService(
 
     private static IEnumerable<PreferenceItem> CreatePreferenceItems(Pedido pedido)
     {
+        if (pedido.DescuentoTotal > 0)
+        {
+            return
+            [
+                new PreferenceItem($"Pedido {pedido.Id}", 1, pedido.Total)
+            ];
+        }
+
         if (pedido.PedidoItems.Count > 0)
         {
             return pedido.PedidoItems.Select(item => new PreferenceItem(

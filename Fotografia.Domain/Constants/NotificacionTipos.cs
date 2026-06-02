@@ -13,4 +13,9 @@ public static class NotificacionTipos
     public const string EventoPublicadoCliente = "EVENTO_PUBLICADO_CLIENTE";
     public const string SesionPrivadaListaCliente = "SESION_PRIVADA_LISTA_CLIENTE";
     public const string NuevoComentarioAdmin = "NUEVO_COMENTARIO_ADMIN";
+    public const string CuponAplicadoCliente = "CUPON_APLICADO_CLIENTE";
+    public const string CuponUsadoAdmin = "CUPON_USADO_ADMIN";
+    public const string TestimonioRecibidoAdmin = "TESTIMONIO_RECIBIDO_ADMIN";
+    public const string CarritoAbandonadoCliente = "CARRITO_ABANDONADO_CLIENTE";
+    public const string PromocionActivaAdmin = "PROMOCION_ACTIVA_ADMIN";
 }
