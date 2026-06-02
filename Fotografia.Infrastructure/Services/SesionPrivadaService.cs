@@ -1,5 +1,6 @@
 using AutoMapper;
 using Fotografia.Application.DTOs.Fotos;
+using Fotografia.Application.DTOs.Notificaciones;
 using Fotografia.Application.DTOs.SesionesPrivadas;
 using Fotografia.Application.Helpers;
 using Fotografia.Application.Services.Interfaces;
@@ -7,13 +8,16 @@ using Fotografia.Domain.Constants;
 using Fotografia.Domain.Entities;
 using Fotografia.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Fotografia.Infrastructure.Services;
 
 public sealed class SesionPrivadaService(
     AppDbContext dbContext,
     IMapper mapper,
-    ICurrentUserService currentUser) : ISesionPrivadaService
+    ICurrentUserService currentUser,
+    INotificacionService notificacionService,
+    ILogger<SesionPrivadaService> logger) : ISesionPrivadaService
 {
     public async Task<ApiResponse<IReadOnlyCollection<SesionPrivadaResponseDto>>> GetAllAsync(
         CancellationToken cancellationToken = default)
@@ -91,6 +95,11 @@ public sealed class SesionPrivadaService(
         dbContext.SesionesPrivadas.Add(sesion);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        if (IsSesionListaParaCliente(estado))
+        {
+            await TryEnqueueSesionListaAsync(sesion, cancellationToken);
+        }
+
         return ApiResponse<SesionPrivadaResponseDto>.Ok(
             mapper.Map<SesionPrivadaResponseDto>(sesion),
             "Sesion privada creada.");
@@ -117,6 +126,7 @@ public sealed class SesionPrivadaService(
             return ApiResponse<SesionPrivadaResponseDto>.Fail("Estado de sesion privada invalido.");
         }
 
+        var estadoAnterior = sesion.Estado;
         sesion.Titulo = request.Titulo.Trim();
         sesion.Descripcion = Normalize(request.Descripcion);
         sesion.FechaSesionUtc = request.FechaSesionUtc;
@@ -126,6 +136,12 @@ public sealed class SesionPrivadaService(
         sesion.FechaActualizacionUtc = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (IsSesionListaParaCliente(estado)
+            && !string.Equals(estadoAnterior, estado, StringComparison.OrdinalIgnoreCase))
+        {
+            await TryEnqueueSesionListaAsync(sesion, cancellationToken);
+        }
 
         return ApiResponse<SesionPrivadaResponseDto>.Ok(
             mapper.Map<SesionPrivadaResponseDto>(sesion),
@@ -153,6 +169,7 @@ public sealed class SesionPrivadaService(
             return ApiResponse<SesionPrivadaResponseDto>.NotFound("Sesion privada no encontrada.");
         }
 
+        var estadoAnterior = sesion.Estado;
         sesion.Estado = estado;
         sesion.FechaActualizacionUtc = DateTime.UtcNow;
         if (estado == SesionPrivadaEstados.Cancelada)
@@ -161,6 +178,12 @@ public sealed class SesionPrivadaService(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (IsSesionListaParaCliente(estado)
+            && !string.Equals(estadoAnterior, estado, StringComparison.OrdinalIgnoreCase))
+        {
+            await TryEnqueueSesionListaAsync(sesion, cancellationToken);
+        }
 
         return ApiResponse<SesionPrivadaResponseDto>.Ok(
             mapper.Map<SesionPrivadaResponseDto>(sesion),
@@ -386,5 +409,73 @@ public sealed class SesionPrivadaService(
         {
             foto.StorageKey = string.Empty;
         }
+    }
+
+    private async Task TryEnqueueSesionListaAsync(
+        SesionPrivada sesion,
+        CancellationToken cancellationToken)
+    {
+        var cliente = await dbContext.Clientes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == sesion.ClienteId, cancellationToken);
+
+        if (cliente is null || string.IsNullOrWhiteSpace(cliente.Email))
+        {
+            return;
+        }
+
+        await TryEnqueueTemplateAsync(new EnqueueTemplateNotificacionRequestDto
+        {
+            Codigo = NotificacionTipos.SesionPrivadaListaCliente,
+            DestinatarioEmail = cliente.Email,
+            UsuarioId = cliente.UsuarioId,
+            EntidadTipo = "SesionPrivada",
+            EntidadId = sesion.Id,
+            CorrelationKey = $"sesion-privada:{sesion.Id}:lista-cliente:{sesion.Estado}",
+            Reemplazos = new Dictionary<string, string?>
+            {
+                ["NombreCliente"] = cliente.Nombre,
+                ["EmailCliente"] = cliente.Email,
+                ["NombreEvento"] = sesion.Titulo,
+                ["PedidoId"] = string.Empty,
+                ["Total"] = sesion.PrecioPaquete?.ToString("0.##"),
+                ["Estado"] = sesion.Estado,
+                ["Link"] = "Disponible en tu cuenta",
+                ["NombreFotografa"] = "Fotografa",
+                ["Fecha"] = sesion.FechaSesionUtc.ToString("yyyy-MM-dd")
+            }
+        }, cancellationToken);
+    }
+
+    private async Task TryEnqueueTemplateAsync(
+        EnqueueTemplateNotificacionRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await notificacionService.EnqueueFromTemplateAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                logger.LogWarning(
+                    "No se pudo encolar notificacion de sesion privada. Codigo={Codigo} EntidadId={EntidadId} Motivo={Motivo}",
+                    request.Codigo,
+                    request.EntidadId,
+                    result.Message);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                ex,
+                "No se pudo encolar notificacion de sesion privada. Codigo={Codigo} EntidadId={EntidadId}",
+                request.Codigo,
+                request.EntidadId);
+        }
+    }
+
+    private static bool IsSesionListaParaCliente(string estado)
+    {
+        return estado == SesionPrivadaEstados.ListaParaCliente
+            || estado == SesionPrivadaEstados.Publicada;
     }
 }

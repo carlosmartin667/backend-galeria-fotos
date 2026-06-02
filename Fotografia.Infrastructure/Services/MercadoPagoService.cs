@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AutoMapper;
 using Fotografia.Infrastructure.Data;
+using Fotografia.Application.DTOs.Notificaciones;
 using Fotografia.Application.DTOs.Pagos;
 using Fotografia.Domain.Constants;
 using Fotografia.Domain.Entities;
@@ -21,7 +22,8 @@ public sealed class MercadoPagoService(
     IOptions<MercadoPagoSettings> options,
     IMapper mapper,
     ILogger<MercadoPagoService> logger,
-    ICurrentUserService currentUser) : IMercadoPagoService
+    ICurrentUserService currentUser,
+    INotificacionService notificacionService) : IMercadoPagoService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly MercadoPagoSettings _settings = options.Value;
@@ -162,6 +164,7 @@ public sealed class MercadoPagoService(
         }
 
         var pedido = await dbContext.Pedidos
+            .Include(x => x.Cliente)
             .Include(x => x.Pago)
             .FirstOrDefaultAsync(x => x.Id == pedidoId, cancellationToken);
 
@@ -218,6 +221,11 @@ public sealed class MercadoPagoService(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        if (PedidoEstados.EsPagado(estadoNuevo, pago.Estado))
+        {
+            await TryEnqueuePagoAprobadoAsync(pedido, pago, cancellationToken);
+        }
+
         return ApiResponse<PagoResponseDto>.Ok(mapper.Map<PagoResponseDto>(pago), "Webhook procesado.");
     }
 
@@ -266,5 +274,81 @@ public sealed class MercadoPagoService(
             && DateTime.TryParse(property.GetString(), out var value)
                 ? value.ToUniversalTime()
                 : null;
+    }
+
+    private async Task TryEnqueuePagoAprobadoAsync(
+        Pedido pedido,
+        Pago pago,
+        CancellationToken cancellationToken)
+    {
+        var cliente = pedido.Cliente;
+        if (cliente is null)
+        {
+            cliente = await dbContext.Clientes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == pedido.ClienteId, cancellationToken);
+        }
+
+        if (cliente is null)
+        {
+            return;
+        }
+
+        var replacements = new Dictionary<string, string?>
+        {
+            ["NombreCliente"] = cliente.Nombre,
+            ["EmailCliente"] = cliente.Email,
+            ["NombreEvento"] = pedido.Evento?.Nombre,
+            ["PedidoId"] = pedido.Id.ToString(),
+            ["Total"] = pago.Monto.ToString("0.##"),
+            ["Estado"] = pago.Estado,
+            ["Link"] = "Disponible en tu cuenta",
+            ["NombreFotografa"] = "Fotografa",
+            ["Fecha"] = (pago.PagadoEnUtc ?? DateTime.UtcNow).ToString("yyyy-MM-dd")
+        };
+
+        await TryEnqueueTemplateAsync(new EnqueueTemplateNotificacionRequestDto
+        {
+            Codigo = NotificacionTipos.PagoAprobadoAdmin,
+            EntidadTipo = "Pago",
+            EntidadId = pago.Id,
+            CorrelationKey = $"pedido:{pedido.Id}:pago-aprobado:admin",
+            Reemplazos = replacements
+        }, cancellationToken);
+
+        await TryEnqueueTemplateAsync(new EnqueueTemplateNotificacionRequestDto
+        {
+            Codigo = NotificacionTipos.PagoAprobadoCliente,
+            DestinatarioEmail = cliente.Email,
+            UsuarioId = cliente.UsuarioId,
+            EntidadTipo = "Pago",
+            EntidadId = pago.Id,
+            CorrelationKey = $"pedido:{pedido.Id}:pago-aprobado:cliente",
+            Reemplazos = replacements
+        }, cancellationToken);
+    }
+
+    private async Task TryEnqueueTemplateAsync(
+        EnqueueTemplateNotificacionRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await notificacionService.EnqueueFromTemplateAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                logger.LogWarning(
+                    "No se pudo encolar notificacion de pago. Codigo={Codigo} EntidadId={EntidadId} Motivo={Motivo}",
+                    request.Codigo,
+                    request.EntidadId,
+                    result.Message);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                ex,
+                "No se pudo encolar notificacion de pago. Codigo={Codigo} EntidadId={EntidadId}",
+                request.Codigo,
+                request.EntidadId);
+        }
     }
 }

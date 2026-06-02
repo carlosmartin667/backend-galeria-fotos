@@ -1,5 +1,6 @@
 using AutoMapper;
 using Fotografia.Application.DTOs.Carrito;
+using Fotografia.Application.DTOs.Notificaciones;
 using Fotografia.Application.DTOs.Pedidos;
 using Fotografia.Application.Helpers;
 using Fotografia.Application.Services.Interfaces;
@@ -7,13 +8,16 @@ using Fotografia.Domain.Constants;
 using Fotografia.Domain.Entities;
 using Fotografia.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Fotografia.Infrastructure.Services;
 
 public sealed class CarritoService(
     AppDbContext dbContext,
     IMapper mapper,
-    ICurrentUserService currentUser) : ICarritoService
+    ICurrentUserService currentUser,
+    INotificacionService notificacionService,
+    ILogger<CarritoService> logger) : ICarritoService
 {
     public async Task<ApiResponse<CarritoResponseDto>> GetActivoAsync(CancellationToken cancellationToken = default)
     {
@@ -314,6 +318,8 @@ public sealed class CarritoService(
         carrito.FechaActualizacionUtc = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        await TryEnqueuePedidoCreadoAsync(pedido, cliente, cancellationToken);
+
         var created = await QueryPedido(pedido.Id).FirstAsync(cancellationToken);
 
         return ApiResponse<PedidoResponseDto>.Ok(
@@ -393,5 +399,70 @@ public sealed class CarritoService(
             FotoPrivadaId = fotoPrivadaId,
             FechaCreacionUtc = DateTime.UtcNow
         };
+    }
+
+    private async Task TryEnqueuePedidoCreadoAsync(
+        Pedido pedido,
+        Cliente cliente,
+        CancellationToken cancellationToken)
+    {
+        var replacements = new Dictionary<string, string?>
+        {
+            ["NombreCliente"] = cliente.Nombre,
+            ["EmailCliente"] = cliente.Email,
+            ["NombreEvento"] = pedido.Evento?.Nombre,
+            ["PedidoId"] = pedido.Id.ToString(),
+            ["Total"] = pedido.Total.ToString("0.##"),
+            ["Estado"] = pedido.Estado,
+            ["Link"] = "Disponible en tu cuenta",
+            ["NombreFotografa"] = "Fotografa",
+            ["Fecha"] = pedido.CreadoEnUtc.ToString("yyyy-MM-dd")
+        };
+
+        await TryEnqueueTemplateAsync(new EnqueueTemplateNotificacionRequestDto
+        {
+            Codigo = NotificacionTipos.PedidoCreadoAdmin,
+            EntidadTipo = "Pedido",
+            EntidadId = pedido.Id,
+            CorrelationKey = $"pedido:{pedido.Id}:creado:admin",
+            Reemplazos = replacements
+        }, cancellationToken);
+
+        await TryEnqueueTemplateAsync(new EnqueueTemplateNotificacionRequestDto
+        {
+            Codigo = NotificacionTipos.PedidoCreadoCliente,
+            DestinatarioEmail = cliente.Email,
+            UsuarioId = cliente.UsuarioId,
+            EntidadTipo = "Pedido",
+            EntidadId = pedido.Id,
+            CorrelationKey = $"pedido:{pedido.Id}:creado:cliente",
+            Reemplazos = replacements
+        }, cancellationToken);
+    }
+
+    private async Task TryEnqueueTemplateAsync(
+        EnqueueTemplateNotificacionRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await notificacionService.EnqueueFromTemplateAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                logger.LogWarning(
+                    "No se pudo encolar notificacion de carrito. Codigo={Codigo} EntidadId={EntidadId} Motivo={Motivo}",
+                    request.Codigo,
+                    request.EntidadId,
+                    result.Message);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                ex,
+                "No se pudo encolar notificacion de carrito. Codigo={Codigo} EntidadId={EntidadId}",
+                request.Codigo,
+                request.EntidadId);
+        }
     }
 }

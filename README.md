@@ -96,3 +96,29 @@ dotnet run --project .\Fotografia.Api\Fotografia.Api.csproj
 ```
 
 El script real `scripts/local/set-pexels-secret.ps1` esta ignorado por Git. El archivo `scripts/local/set-pexels-secret.example.ps1` queda como referencia sin secretos reales.
+
+## Notificaciones y automatizaciones
+
+Fase 4 agrega cola de notificaciones internas y por email. El envio usa el `IEmailService` existente con Resend.
+
+Por defecto el envio automatico esta desactivado:
+
+```json
+"Notifications": {
+  "Enabled": false,
+  "WorkerEnabled": false
+}
+```
+
+Para enviar emails en desarrollo, configura Resend con user-secrets o variables de entorno y luego habilita `Notifications:Enabled` y `Notifications:WorkerEnabled`.
+
+Ejemplo con user-secrets:
+
+```powershell
+dotnet user-secrets set "Resend:ApiKey" "TU_RESEND_API_KEY" --project .\Fotografia.Api\Fotografia.Api.csproj
+dotnet user-secrets set "Resend:FromEmail" "no-reply@tu-dominio.com" --project .\Fotografia.Api\Fotografia.Api.csproj
+dotnet user-secrets set "Notifications:Enabled" "true" --project .\Fotografia.Api\Fotografia.Api.csproj
+dotnet user-secrets set "Notifications:WorkerEnabled" "true" --project .\Fotografia.Api\Fotografia.Api.csproj
+```
+
+No guardes claves reales en `appsettings.json`, `appsettings.Development.json` ni `appsettings.Local.json` si ese archivo se va a compartir.

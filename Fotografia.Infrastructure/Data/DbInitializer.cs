@@ -80,6 +80,7 @@ public static class DbInitializer
         await SeedPortadasEventosAsync(dbContext, logger, cancellationToken);
         await SeedPedidosAsync(dbContext, logger, cancellationToken);
         await SeedRequestedDemoDataAsync(dbContext, passwordHasher, logger, cancellationToken);
+        await SeedPlantillasNotificacionAsync(dbContext, logger, cancellationToken);
     }
 
     private static async Task SeedClientesAsync(AppDbContext dbContext, ILogger? logger, CancellationToken cancellationToken)
@@ -364,6 +365,49 @@ public static class DbInitializer
         }
 
         await SaveSeedChangesAsync(dbContext, logger, "Seed: descargas demo", cancellationToken);
+    }
+
+    private static async Task SeedPlantillasNotificacionAsync(
+        AppDbContext dbContext,
+        ILogger? logger,
+        CancellationToken cancellationToken)
+    {
+        LogSeedBlock(logger, "Seed: plantillas de notificacion");
+        var templates = new[]
+        {
+            CreatePlantilla(NotificacionTipos.SolicitudPresupuestoCreadaAdmin, NotificacionCanales.Interna, "Nueva solicitud de presupuesto", "<p>{{NombreCliente}} solicito presupuesto para {{NombreEvento}}.</p><p>Email: {{EmailCliente}}</p><p>Fecha: {{Fecha}}</p>", "{{NombreCliente}} solicito presupuesto para {{NombreEvento}}."),
+            CreatePlantilla(NotificacionTipos.SolicitudPresupuestoRecibidaCliente, NotificacionCanales.Email, "Recibimos tu solicitud", "<p>Hola {{NombreCliente}}, recibimos tu solicitud de presupuesto.</p><p>Te vamos a responder a la brevedad.</p>", "Hola {{NombreCliente}}, recibimos tu solicitud de presupuesto."),
+            CreatePlantilla(NotificacionTipos.PedidoCreadoCliente, NotificacionCanales.Email, "Pedido creado", "<p>Hola {{NombreCliente}}, tu pedido {{PedidoId}} fue creado por un total de {{Total}}.</p>", "Tu pedido {{PedidoId}} fue creado por un total de {{Total}}."),
+            CreatePlantilla(NotificacionTipos.PedidoCreadoAdmin, NotificacionCanales.Interna, "Nuevo pedido creado", "<p>{{NombreCliente}} creo el pedido {{PedidoId}} por {{Total}}.</p>", "{{NombreCliente}} creo el pedido {{PedidoId}} por {{Total}}."),
+            CreatePlantilla(NotificacionTipos.PagoAprobadoCliente, NotificacionCanales.Email, "Pago aprobado", "<p>Hola {{NombreCliente}}, el pago del pedido {{PedidoId}} fue aprobado.</p>", "El pago del pedido {{PedidoId}} fue aprobado."),
+            CreatePlantilla(NotificacionTipos.PagoAprobadoAdmin, NotificacionCanales.Interna, "Pago aprobado", "<p>Se aprobo el pago del pedido {{PedidoId}} por {{Total}}.</p>", "Se aprobo el pago del pedido {{PedidoId}} por {{Total}}."),
+            CreatePlantilla(NotificacionTipos.PedidoListoDescargaCliente, NotificacionCanales.Email, "Tu pedido esta listo para descargar", "<p>Hola {{NombreCliente}}, tu pedido {{PedidoId}} esta listo para descargar. {{Link}}</p>", "Tu pedido {{PedidoId}} esta listo para descargar."),
+            CreatePlantilla(NotificacionTipos.DescargaLinkGeneradoCliente, NotificacionCanales.Email, "Link de descarga generado", "<p>Hola {{NombreCliente}}, generamos una descarga para tu pedido {{PedidoId}}. {{Link}}</p>", "Generamos una descarga para tu pedido {{PedidoId}}."),
+            CreatePlantilla(NotificacionTipos.EventoPublicadoCliente, NotificacionCanales.Email, "Galeria publicada", "<p>Hola {{NombreCliente}}, la galeria {{NombreEvento}} ya esta publicada. {{Link}}</p>", "La galeria {{NombreEvento}} ya esta publicada."),
+            CreatePlantilla(NotificacionTipos.SesionPrivadaListaCliente, NotificacionCanales.Email, "Sesion privada lista", "<p>Hola {{NombreCliente}}, tu sesion privada {{NombreEvento}} esta en estado {{Estado}}. {{Link}}</p>", "Tu sesion privada {{NombreEvento}} esta en estado {{Estado}}."),
+            CreatePlantilla(NotificacionTipos.NuevoComentarioAdmin, NotificacionCanales.Interna, "Nuevo comentario", "<p>{{NombreCliente}} agrego un comentario en {{NombreEvento}}.</p>", "{{NombreCliente}} agrego un comentario en {{NombreEvento}}.")
+        };
+
+        foreach (var template in templates)
+        {
+            var existing = await dbContext.PlantillasNotificacion
+                .FirstOrDefaultAsync(x => x.Codigo == template.Codigo, cancellationToken);
+
+            if (existing is null)
+            {
+                dbContext.PlantillasNotificacion.Add(template);
+                continue;
+            }
+
+            existing.Canal = template.Canal;
+            existing.Asunto = template.Asunto;
+            existing.CuerpoHtml = template.CuerpoHtml;
+            existing.CuerpoTexto = template.CuerpoTexto;
+            existing.Activa = true;
+            existing.FechaActualizacionUtc = SeedClock.Now;
+        }
+
+        await SaveSeedChangesAsync(dbContext, logger, "Seed: plantillas de notificacion", cancellationToken);
     }
 
     private static async Task SeedRequestedDemoDataAsync(
@@ -1821,6 +1865,25 @@ public static class DbInitializer
             DescargasRealizadas = 0,
             UltimaDescargaUtc = null,
             Activa = true
+        };
+    }
+
+    private static PlantillaNotificacion CreatePlantilla(
+        string codigo,
+        string canal,
+        string asunto,
+        string cuerpoHtml,
+        string cuerpoTexto)
+    {
+        return new PlantillaNotificacion
+        {
+            Codigo = codigo,
+            Canal = canal,
+            Asunto = asunto,
+            CuerpoHtml = cuerpoHtml,
+            CuerpoTexto = cuerpoTexto,
+            Activa = true,
+            FechaCreacionUtc = SeedClock.Now
         };
     }
 

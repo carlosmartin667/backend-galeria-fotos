@@ -1,4 +1,5 @@
 using Fotografia.Infrastructure.Data;
+using Fotografia.Application.DTOs.Notificaciones;
 using Fotografia.Application.DTOs.Descargas;
 using Fotografia.Domain.Constants;
 using Fotografia.Domain.Entities;
@@ -13,6 +14,7 @@ public sealed class DescargaService(
     AppDbContext dbContext,
     IStorageService storageService,
     ICurrentUserService currentUser,
+    INotificacionService notificacionService,
     ILogger<DescargaService> logger) : IDescargaService
 {
     private const int DefaultMaxDescargas = 5;
@@ -156,6 +158,7 @@ public sealed class DescargaService(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation("Descarga creada. DescargaId={DescargaId} PedidoId={PedidoId}", descarga.Id, pedido.Id);
+        await TryEnqueueDescargaLinkGeneradoAsync(descarga, pedido, cancellationToken);
 
         signedUrl.Data.DescargaId = descarga.Id;
         signedUrl.Data.FotoId = target.Data.FotoId;
@@ -249,6 +252,7 @@ public sealed class DescargaService(
             "Descarga regenerada. DescargaAnteriorId={DescargaAnteriorId} DescargaNuevaId={DescargaNuevaId}",
             descargaAnterior.Id,
             descargaNueva.Id);
+        await TryEnqueueDescargaLinkGeneradoAsync(descargaNueva, pedido, cancellationToken);
 
         return ApiResponse<RegenerarDescargaResponseDto>.Ok(new RegenerarDescargaResponseDto
         {
@@ -504,4 +508,69 @@ public sealed class DescargaService(
         Guid? FotoPrivadaId,
         string StorageKey,
         string NombreArchivo);
+
+    private async Task TryEnqueueDescargaLinkGeneradoAsync(
+        Descarga descarga,
+        Pedido pedido,
+        CancellationToken cancellationToken)
+    {
+        var cliente = pedido.Cliente;
+        if (cliente is null)
+        {
+            cliente = await dbContext.Clientes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == pedido.ClienteId, cancellationToken);
+        }
+
+        if (cliente is null)
+        {
+            return;
+        }
+
+        await TryEnqueueTemplateAsync(new EnqueueTemplateNotificacionRequestDto
+        {
+            Codigo = NotificacionTipos.DescargaLinkGeneradoCliente,
+            DestinatarioEmail = cliente.Email,
+            UsuarioId = cliente.UsuarioId,
+            EntidadTipo = "Descarga",
+            EntidadId = descarga.Id,
+            CorrelationKey = $"descarga:{descarga.Id}:link-generado:cliente",
+            Reemplazos = new Dictionary<string, string?>
+            {
+                ["NombreCliente"] = cliente.Nombre,
+                ["EmailCliente"] = cliente.Email,
+                ["NombreEvento"] = descarga.Evento?.Nombre,
+                ["PedidoId"] = pedido.Id.ToString(),
+                ["Total"] = pedido.Total.ToString("0.##"),
+                ["Estado"] = pedido.Estado,
+                ["Link"] = "Disponible en tu cuenta",
+                ["NombreFotografa"] = "Fotografa",
+                ["Fecha"] = descarga.ExpiraEnUtc.ToString("yyyy-MM-dd")
+            }
+        }, cancellationToken);
+    }
+
+    private async Task TryEnqueueTemplateAsync(
+        EnqueueTemplateNotificacionRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await notificacionService.EnqueueFromTemplateAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                logger.LogWarning(
+                    "No se pudo encolar notificacion de descarga. Codigo={Codigo} EntidadId={EntidadId} Motivo={Motivo}",
+                    request.Codigo,
+                    request.EntidadId,
+                    result.Message);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                ex,
+                "No se pudo encolar notificacion de descarga. Codigo={Codigo} EntidadId={EntidadId}",
+                request.Codigo,
+                request.EntidadId);
+        }
+    }
 }

@@ -23,4 +23,5 @@ public sealed class Usuario
     public ICollection<EventoFavorito> EventosFavoritos { get; set; } = [];
     public ICollection<FotoFavorita> FotosFavoritas { get; set; } = [];
     public ICollection<CarritoCompra> CarritosCompra { get; set; } = [];
+    public ICollection<Notificacion> Notificaciones { get; set; } = [];
 }

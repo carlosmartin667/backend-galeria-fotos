@@ -1,4 +1,5 @@
 using AutoMapper;
+using Fotografia.Application.DTOs.Notificaciones;
 using Fotografia.Application.DTOs.Presupuestos;
 using Fotografia.Application.Helpers;
 using Fotografia.Application.Services.Interfaces;
@@ -6,13 +7,16 @@ using Fotografia.Domain.Constants;
 using Fotografia.Domain.Entities;
 using Fotografia.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Fotografia.Infrastructure.Services;
 
 public sealed class SolicitudPresupuestoService(
     AppDbContext dbContext,
     IMapper mapper,
-    ICurrentUserService currentUser) : ISolicitudPresupuestoService
+    ICurrentUserService currentUser,
+    INotificacionService notificacionService,
+    ILogger<SolicitudPresupuestoService> logger) : ISolicitudPresupuestoService
 {
     public async Task<ApiResponse<SolicitudPresupuestoResponseDto>> CreateAsync(
         CrearSolicitudPresupuestoRequestDto request,
@@ -42,6 +46,8 @@ public sealed class SolicitudPresupuestoService(
 
         dbContext.SolicitudesPresupuesto.Add(solicitud);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await TryEnqueueSolicitudCreadaAsync(solicitud, cancellationToken);
 
         var created = await QuerySolicitudes()
             .AsNoTracking()
@@ -225,5 +231,72 @@ public sealed class SolicitudPresupuestoService(
     private static string? Normalize(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private async Task TryEnqueueSolicitudCreadaAsync(
+        SolicitudPresupuesto solicitud,
+        CancellationToken cancellationToken)
+    {
+        var replacements = CreateSolicitudReplacements(solicitud);
+        await TryEnqueueTemplateAsync(new EnqueueTemplateNotificacionRequestDto
+        {
+            Codigo = NotificacionTipos.SolicitudPresupuestoCreadaAdmin,
+            EntidadTipo = "SolicitudPresupuesto",
+            EntidadId = solicitud.Id,
+            CorrelationKey = $"solicitud-presupuesto:{solicitud.Id}:admin",
+            Reemplazos = replacements
+        }, cancellationToken);
+
+        await TryEnqueueTemplateAsync(new EnqueueTemplateNotificacionRequestDto
+        {
+            Codigo = NotificacionTipos.SolicitudPresupuestoRecibidaCliente,
+            DestinatarioEmail = solicitud.Email,
+            EntidadTipo = "SolicitudPresupuesto",
+            EntidadId = solicitud.Id,
+            CorrelationKey = $"solicitud-presupuesto:{solicitud.Id}:cliente",
+            Reemplazos = replacements
+        }, cancellationToken);
+    }
+
+    private async Task TryEnqueueTemplateAsync(
+        EnqueueTemplateNotificacionRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await notificacionService.EnqueueFromTemplateAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                logger.LogWarning(
+                    "No se pudo encolar notificacion de presupuesto. Codigo={Codigo} EntidadId={EntidadId} Motivo={Motivo}",
+                    request.Codigo,
+                    request.EntidadId,
+                    result.Message);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                ex,
+                "No se pudo encolar notificacion de presupuesto. Codigo={Codigo} EntidadId={EntidadId}",
+                request.Codigo,
+                request.EntidadId);
+        }
+    }
+
+    private static Dictionary<string, string?> CreateSolicitudReplacements(SolicitudPresupuesto solicitud)
+    {
+        return new Dictionary<string, string?>
+        {
+            ["NombreCliente"] = solicitud.Nombre,
+            ["EmailCliente"] = solicitud.Email,
+            ["NombreEvento"] = solicitud.TipoEvento,
+            ["PedidoId"] = string.Empty,
+            ["Total"] = string.Empty,
+            ["Estado"] = solicitud.Estado,
+            ["Link"] = string.Empty,
+            ["NombreFotografa"] = "Fotografa",
+            ["Fecha"] = solicitud.FechaTentativaUtc?.ToString("yyyy-MM-dd") ?? solicitud.FechaCreacionUtc.ToString("yyyy-MM-dd")
+        };
     }
 }

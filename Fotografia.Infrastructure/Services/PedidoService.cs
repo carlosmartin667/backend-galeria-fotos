@@ -1,6 +1,7 @@
 using AutoMapper;
 using Fotografia.Infrastructure.Data;
 using Fotografia.Application.DTOs.Common;
+using Fotografia.Application.DTOs.Notificaciones;
 using Fotografia.Application.DTOs.Pedidos;
 using Fotografia.Domain.Constants;
 using Fotografia.Domain.Entities;
@@ -8,10 +9,16 @@ using Fotografia.Application.Helpers;
 using Fotografia.Application.Services.Interfaces;
 using Fotografia.Infrastructure.Extensions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Fotografia.Infrastructure.Services;
 
-public sealed class PedidoService(AppDbContext dbContext, IMapper mapper, ICurrentUserService currentUser) : IPedidoService
+public sealed class PedidoService(
+    AppDbContext dbContext,
+    IMapper mapper,
+    ICurrentUserService currentUser,
+    INotificacionService notificacionService,
+    ILogger<PedidoService> logger) : IPedidoService
 {
     public async Task<ApiResponse<IReadOnlyCollection<PedidoResponseDto>>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -154,6 +161,8 @@ public sealed class PedidoService(AppDbContext dbContext, IMapper mapper, ICurre
         dbContext.Pedidos.Add(pedido);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        await TryEnqueuePedidoCreadoAsync(pedido, cliente, cancellationToken);
+
         var created = await QueryPedidos()
             .AsNoTracking()
             .FirstAsync(x => x.Id == pedido.Id, cancellationToken);
@@ -218,6 +227,11 @@ public sealed class PedidoService(AppDbContext dbContext, IMapper mapper, ICurre
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (estadoNuevo == PedidoEstados.ListoParaDescargar)
+        {
+            await TryEnqueuePedidoListoDescargaAsync(pedido, cancellationToken);
+        }
 
         var updated = await QueryPedidos()
             .AsNoTracking()
@@ -320,5 +334,101 @@ public sealed class PedidoService(AppDbContext dbContext, IMapper mapper, ICurre
     private static string? Normalize(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private async Task TryEnqueuePedidoCreadoAsync(
+        Pedido pedido,
+        Cliente cliente,
+        CancellationToken cancellationToken)
+    {
+        var replacements = CreatePedidoReplacements(pedido, cliente);
+        await TryEnqueueTemplateAsync(new EnqueueTemplateNotificacionRequestDto
+        {
+            Codigo = NotificacionTipos.PedidoCreadoAdmin,
+            EntidadTipo = "Pedido",
+            EntidadId = pedido.Id,
+            CorrelationKey = $"pedido:{pedido.Id}:creado:admin",
+            Reemplazos = replacements
+        }, cancellationToken);
+
+        await TryEnqueueTemplateAsync(new EnqueueTemplateNotificacionRequestDto
+        {
+            Codigo = NotificacionTipos.PedidoCreadoCliente,
+            DestinatarioEmail = cliente.Email,
+            UsuarioId = cliente.UsuarioId,
+            EntidadTipo = "Pedido",
+            EntidadId = pedido.Id,
+            CorrelationKey = $"pedido:{pedido.Id}:creado:cliente",
+            Reemplazos = replacements
+        }, cancellationToken);
+    }
+
+    private async Task TryEnqueuePedidoListoDescargaAsync(
+        Pedido pedido,
+        CancellationToken cancellationToken)
+    {
+        var cliente = pedido.Cliente;
+        if (cliente is null)
+        {
+            cliente = await dbContext.Clientes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == pedido.ClienteId, cancellationToken);
+        }
+
+        if (cliente is null)
+        {
+            return;
+        }
+
+        await TryEnqueueTemplateAsync(new EnqueueTemplateNotificacionRequestDto
+        {
+            Codigo = NotificacionTipos.PedidoListoDescargaCliente,
+            DestinatarioEmail = cliente.Email,
+            UsuarioId = cliente.UsuarioId,
+            EntidadTipo = "Pedido",
+            EntidadId = pedido.Id,
+            CorrelationKey = $"pedido:{pedido.Id}:listo-descarga:cliente",
+            Reemplazos = CreatePedidoReplacements(pedido, cliente)
+        }, cancellationToken);
+    }
+
+    private async Task TryEnqueueTemplateAsync(
+        EnqueueTemplateNotificacionRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await notificacionService.EnqueueFromTemplateAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                logger.LogWarning(
+                    "No se pudo encolar notificacion de pedido. Codigo={Codigo} EntidadId={EntidadId} Motivo={Motivo}",
+                    request.Codigo,
+                    request.EntidadId,
+                    result.Message);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                ex,
+                "No se pudo encolar notificacion de pedido. Codigo={Codigo} EntidadId={EntidadId}",
+                request.Codigo,
+                request.EntidadId);
+        }
+    }
+
+    private static Dictionary<string, string?> CreatePedidoReplacements(Pedido pedido, Cliente cliente)
+    {
+        return new Dictionary<string, string?>
+        {
+            ["NombreCliente"] = cliente.Nombre,
+            ["EmailCliente"] = cliente.Email,
+            ["NombreEvento"] = pedido.Evento?.Nombre,
+            ["PedidoId"] = pedido.Id.ToString(),
+            ["Total"] = pedido.Total.ToString("0.##"),
+            ["Estado"] = pedido.Estado,
+            ["Link"] = "Disponible en tu cuenta",
+            ["NombreFotografa"] = "Fotografa",
+            ["Fecha"] = pedido.CreadoEnUtc.ToString("yyyy-MM-dd")
+        };
     }
 }

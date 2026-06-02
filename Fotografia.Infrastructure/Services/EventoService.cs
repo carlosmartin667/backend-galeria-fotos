@@ -1,6 +1,7 @@
 using AutoMapper;
 using Fotografia.Application.DTOs.Common;
 using Fotografia.Application.DTOs.Eventos;
+using Fotografia.Application.DTOs.Notificaciones;
 using Fotografia.Application.Helpers;
 using Fotografia.Application.Services.Interfaces;
 using Fotografia.Domain.Constants;
@@ -8,10 +9,16 @@ using Fotografia.Domain.Entities;
 using Fotografia.Infrastructure.Data;
 using Fotografia.Infrastructure.Extensions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Fotografia.Infrastructure.Services;
 
-public sealed class EventoService(AppDbContext dbContext, IMapper mapper, ICurrentUserService currentUser) : IEventoService
+public sealed class EventoService(
+    AppDbContext dbContext,
+    IMapper mapper,
+    ICurrentUserService currentUser,
+    INotificacionService notificacionService,
+    ILogger<EventoService> logger) : IEventoService
 {
     public async Task<ApiResponse<IReadOnlyCollection<EventoResponseDto>>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -103,6 +110,11 @@ public sealed class EventoService(AppDbContext dbContext, IMapper mapper, ICurre
         dbContext.Eventos.Add(evento);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        if (evento.Estado == EventoEstados.Publicado)
+        {
+            await TryEnqueueEventoPublicadoAsync(evento, cancellationToken);
+        }
+
         return ApiResponse<EventoResponseDto>.Ok(mapper.Map<EventoResponseDto>(evento), "Evento creado.");
     }
 
@@ -138,6 +150,7 @@ public sealed class EventoService(AppDbContext dbContext, IMapper mapper, ICurre
         }
 
         var previousName = evento.Nombre;
+        var previousEstado = evento.Estado;
         evento.Nombre = request.Nombre.Trim();
         evento.Descripcion = request.Descripcion;
         evento.FechaEventoUtc = request.FechaEventoUtc;
@@ -154,6 +167,12 @@ public sealed class EventoService(AppDbContext dbContext, IMapper mapper, ICurre
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (estado == EventoEstados.Publicado
+            && !string.Equals(previousEstado, EventoEstados.Publicado, StringComparison.OrdinalIgnoreCase))
+        {
+            await TryEnqueueEventoPublicadoAsync(evento, cancellationToken);
+        }
 
         return ApiResponse<EventoResponseDto>.Ok(mapper.Map<EventoResponseDto>(evento), "Evento actualizado.");
     }
@@ -302,5 +321,72 @@ public sealed class EventoService(AppDbContext dbContext, IMapper mapper, ICurre
 
         visibilidad = match;
         return true;
+    }
+
+    private async Task TryEnqueueEventoPublicadoAsync(
+        Evento evento,
+        CancellationToken cancellationToken)
+    {
+        if (evento.ClientePrincipalId is not Guid clienteId)
+        {
+            return;
+        }
+
+        var cliente = await dbContext.Clientes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == clienteId, cancellationToken);
+
+        if (cliente is null || string.IsNullOrWhiteSpace(cliente.Email))
+        {
+            return;
+        }
+
+        await TryEnqueueTemplateAsync(new EnqueueTemplateNotificacionRequestDto
+        {
+            Codigo = NotificacionTipos.EventoPublicadoCliente,
+            DestinatarioEmail = cliente.Email,
+            UsuarioId = cliente.UsuarioId,
+            EntidadTipo = "Evento",
+            EntidadId = evento.Id,
+            CorrelationKey = $"evento:{evento.Id}:publicado:cliente",
+            Reemplazos = new Dictionary<string, string?>
+            {
+                ["NombreCliente"] = cliente.Nombre,
+                ["EmailCliente"] = cliente.Email,
+                ["NombreEvento"] = evento.Nombre,
+                ["PedidoId"] = string.Empty,
+                ["Total"] = string.Empty,
+                ["Estado"] = evento.Estado,
+                ["Link"] = "Disponible en tu cuenta",
+                ["NombreFotografa"] = "Fotografa",
+                ["Fecha"] = evento.FechaEventoUtc.ToString("yyyy-MM-dd")
+            }
+        }, cancellationToken);
+    }
+
+    private async Task TryEnqueueTemplateAsync(
+        EnqueueTemplateNotificacionRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await notificacionService.EnqueueFromTemplateAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                logger.LogWarning(
+                    "No se pudo encolar notificacion de evento. Codigo={Codigo} EntidadId={EntidadId} Motivo={Motivo}",
+                    request.Codigo,
+                    request.EntidadId,
+                    result.Message);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                ex,
+                "No se pudo encolar notificacion de evento. Codigo={Codigo} EntidadId={EntidadId}",
+                request.Codigo,
+                request.EntidadId);
+        }
     }
 }

@@ -1,17 +1,22 @@
 using AutoMapper;
 using Fotografia.Application.DTOs.Comentarios;
+using Fotografia.Application.DTOs.Notificaciones;
 using Fotografia.Application.Helpers;
 using Fotografia.Application.Services.Interfaces;
+using Fotografia.Domain.Constants;
 using Fotografia.Domain.Entities;
 using Fotografia.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Fotografia.Infrastructure.Services;
 
 public sealed class ComentarioEventoService(
     AppDbContext dbContext,
     IMapper mapper,
-    ICurrentUserService currentUser) : IComentarioEventoService
+    ICurrentUserService currentUser,
+    INotificacionService notificacionService,
+    ILogger<ComentarioEventoService> logger) : IComentarioEventoService
 {
     public async Task<ApiResponse<IReadOnlyCollection<ComentarioResponseDto>>> GetByEventoAsync(
         Guid eventoId,
@@ -63,6 +68,8 @@ public sealed class ComentarioEventoService(
 
         dbContext.ComentariosEventos.Add(comentario);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await TryEnqueueComentarioAdminAsync(comentario, cancellationToken);
 
         var created = await QueryComentarios()
             .AsNoTracking()
@@ -135,5 +142,57 @@ public sealed class ComentarioEventoService(
     private bool CanModify(Guid usuarioId)
     {
         return currentUser.IsAdmin || currentUser.UserId == usuarioId;
+    }
+
+    private async Task TryEnqueueComentarioAdminAsync(
+        ComentarioEvento comentario,
+        CancellationToken cancellationToken)
+    {
+        var evento = await dbContext.Eventos.AsNoTracking().FirstOrDefaultAsync(x => x.Id == comentario.EventoId, cancellationToken);
+        await TryEnqueueTemplateAsync(new EnqueueTemplateNotificacionRequestDto
+        {
+            Codigo = NotificacionTipos.NuevoComentarioAdmin,
+            EntidadTipo = "ComentarioEvento",
+            EntidadId = comentario.Id,
+            CorrelationKey = $"comentario-evento:{comentario.Id}:admin",
+            Reemplazos = new Dictionary<string, string?>
+            {
+                ["NombreCliente"] = currentUser.Email ?? "Usuario",
+                ["EmailCliente"] = currentUser.Email,
+                ["NombreEvento"] = evento?.Nombre,
+                ["PedidoId"] = string.Empty,
+                ["Total"] = string.Empty,
+                ["Estado"] = "NuevoComentario",
+                ["Link"] = string.Empty,
+                ["NombreFotografa"] = "Fotografa",
+                ["Fecha"] = comentario.FechaCreacionUtc.ToString("yyyy-MM-dd")
+            }
+        }, cancellationToken);
+    }
+
+    private async Task TryEnqueueTemplateAsync(
+        EnqueueTemplateNotificacionRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await notificacionService.EnqueueFromTemplateAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                logger.LogWarning(
+                    "No se pudo encolar notificacion de comentario de evento. Codigo={Codigo} EntidadId={EntidadId} Motivo={Motivo}",
+                    request.Codigo,
+                    request.EntidadId,
+                    result.Message);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                ex,
+                "No se pudo encolar notificacion de comentario de evento. Codigo={Codigo} EntidadId={EntidadId}",
+                request.Codigo,
+                request.EntidadId);
+        }
     }
 }

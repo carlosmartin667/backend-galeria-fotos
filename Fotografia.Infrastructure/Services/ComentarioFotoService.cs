@@ -1,17 +1,22 @@
 using AutoMapper;
 using Fotografia.Application.DTOs.Comentarios;
+using Fotografia.Application.DTOs.Notificaciones;
 using Fotografia.Application.Helpers;
 using Fotografia.Application.Services.Interfaces;
+using Fotografia.Domain.Constants;
 using Fotografia.Domain.Entities;
 using Fotografia.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Fotografia.Infrastructure.Services;
 
 public sealed class ComentarioFotoService(
     AppDbContext dbContext,
     IMapper mapper,
-    ICurrentUserService currentUser) : IComentarioFotoService
+    ICurrentUserService currentUser,
+    INotificacionService notificacionService,
+    ILogger<ComentarioFotoService> logger) : IComentarioFotoService
 {
     public async Task<ApiResponse<IReadOnlyCollection<ComentarioResponseDto>>> GetByFotoAsync(
         Guid fotoId,
@@ -63,6 +68,8 @@ public sealed class ComentarioFotoService(
 
         dbContext.ComentariosFotos.Add(comentario);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await TryEnqueueComentarioAdminAsync(comentario, cancellationToken);
 
         var created = await QueryComentarios()
             .AsNoTracking()
@@ -135,5 +142,61 @@ public sealed class ComentarioFotoService(
     private bool CanModify(Guid usuarioId)
     {
         return currentUser.IsAdmin || currentUser.UserId == usuarioId;
+    }
+
+    private async Task TryEnqueueComentarioAdminAsync(
+        ComentarioFoto comentario,
+        CancellationToken cancellationToken)
+    {
+        var foto = await dbContext.Fotos
+            .AsNoTracking()
+            .Include(x => x.Evento)
+            .FirstOrDefaultAsync(x => x.Id == comentario.FotoId, cancellationToken);
+
+        await TryEnqueueTemplateAsync(new EnqueueTemplateNotificacionRequestDto
+        {
+            Codigo = NotificacionTipos.NuevoComentarioAdmin,
+            EntidadTipo = "ComentarioFoto",
+            EntidadId = comentario.Id,
+            CorrelationKey = $"comentario-foto:{comentario.Id}:admin",
+            Reemplazos = new Dictionary<string, string?>
+            {
+                ["NombreCliente"] = currentUser.Email ?? "Usuario",
+                ["EmailCliente"] = currentUser.Email,
+                ["NombreEvento"] = foto?.Evento?.Nombre ?? foto?.NombreArchivo,
+                ["PedidoId"] = string.Empty,
+                ["Total"] = string.Empty,
+                ["Estado"] = "NuevoComentario",
+                ["Link"] = string.Empty,
+                ["NombreFotografa"] = "Fotografa",
+                ["Fecha"] = comentario.FechaCreacionUtc.ToString("yyyy-MM-dd")
+            }
+        }, cancellationToken);
+    }
+
+    private async Task TryEnqueueTemplateAsync(
+        EnqueueTemplateNotificacionRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await notificacionService.EnqueueFromTemplateAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                logger.LogWarning(
+                    "No se pudo encolar notificacion de comentario de foto. Codigo={Codigo} EntidadId={EntidadId} Motivo={Motivo}",
+                    request.Codigo,
+                    request.EntidadId,
+                    result.Message);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                ex,
+                "No se pudo encolar notificacion de comentario de foto. Codigo={Codigo} EntidadId={EntidadId}",
+                request.Codigo,
+                request.EntidadId);
+        }
     }
 }

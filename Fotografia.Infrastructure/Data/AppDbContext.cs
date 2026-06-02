@@ -32,6 +32,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<ComentarioFoto> ComentariosFotos => Set<ComentarioFoto>();
     public DbSet<EventoFavorito> EventosFavoritos => Set<EventoFavorito>();
     public DbSet<FotoFavorita> FotosFavoritas => Set<FotoFavorita>();
+    public DbSet<Notificacion> Notificaciones => Set<Notificacion>();
+    public DbSet<PlantillaNotificacion> PlantillasNotificacion => Set<PlantillaNotificacion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -51,6 +53,48 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.Instagram).HasMaxLength(120);
             entity.Property(x => x.CorreoPublico).HasMaxLength(160);
             entity.Property(x => x.Direccion).HasMaxLength(300);
+        });
+
+        modelBuilder.Entity<Notificacion>(entity =>
+        {
+            entity.ToTable("Notificaciones");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.Estado);
+            entity.HasIndex(x => x.Canal);
+            entity.HasIndex(x => x.UsuarioId);
+            entity.HasIndex(x => new { x.EntidadTipo, x.EntidadId });
+            entity.HasIndex(x => x.CorrelationKey);
+            entity.Property(x => x.Tipo).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.Canal).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.Estado).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.Titulo).HasMaxLength(300).IsRequired();
+            entity.Property(x => x.Mensaje).HasMaxLength(4000).IsRequired();
+            entity.Property(x => x.DestinatarioEmail).HasMaxLength(256);
+            entity.Property(x => x.EntidadTipo).HasMaxLength(80);
+            entity.Property(x => x.CorrelationKey).HasMaxLength(240);
+            entity.Property(x => x.Error).HasMaxLength(1000);
+            entity.Property(x => x.Activa).HasDefaultValue(true);
+            entity.Property(x => x.Leida).HasDefaultValue(false);
+            entity.Property(x => x.Intentos).HasDefaultValue(0);
+            entity.Property(x => x.MaxIntentos).HasDefaultValue(3);
+            entity.HasOne(x => x.Usuario)
+                .WithMany(x => x.Notificaciones)
+                .HasForeignKey(x => x.UsuarioId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<PlantillaNotificacion>(entity =>
+        {
+            entity.ToTable("PlantillasNotificacion");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.Codigo).IsUnique();
+            entity.HasIndex(x => x.Activa);
+            entity.Property(x => x.Codigo).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.Canal).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.Asunto).HasMaxLength(300).IsRequired();
+            entity.Property(x => x.CuerpoHtml).HasMaxLength(4000).IsRequired();
+            entity.Property(x => x.CuerpoTexto).HasMaxLength(4000);
+            entity.Property(x => x.Activa).HasDefaultValue(true);
         });
 
         modelBuilder.Entity<PerfilFotografa>(entity =>

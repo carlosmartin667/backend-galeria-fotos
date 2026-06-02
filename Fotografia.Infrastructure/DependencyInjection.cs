@@ -19,6 +19,7 @@ public static class DependencyInjection
         services.Configure<CloudflareR2Settings>(configuration.GetSection(CloudflareR2Settings.SectionName));
         services.Configure<DatabaseSettings>(configuration.GetSection(DatabaseSettings.SectionName));
         services.Configure<PexelsSettings>(configuration.GetSection(PexelsSettings.SectionName));
+        services.Configure<NotificationsSettings>(configuration.GetSection(NotificationsSettings.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection no esta configurado.");
@@ -63,8 +64,11 @@ public static class DependencyInjection
         services.AddScoped<IComentarioFotoService, ComentarioFotoService>();
         services.AddScoped<IFavoritoService, FavoritoService>();
         services.AddScoped<INotaInternaService, NotaInternaService>();
+        services.AddScoped<INotificacionService, NotificacionService>();
+        services.AddScoped<IPlantillaNotificacionService, PlantillaNotificacionService>();
         services.AddScoped<IStorageService, CloudflareR2StorageService>();
         services.AddScoped<IEmailService, EmailService>();
+        services.AddHostedService<NotificationWorkerService>();
 
         return services;
     }
