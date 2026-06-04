@@ -15,6 +15,7 @@ public sealed class SolicitudPresupuestoService(
     AppDbContext dbContext,
     IMapper mapper,
     ICurrentUserService currentUser,
+    IBitacoraService bitacoraService,
     INotificacionService notificacionService,
     ILogger<SolicitudPresupuestoService> logger) : ISolicitudPresupuestoService
 {
@@ -46,6 +47,22 @@ public sealed class SolicitudPresupuestoService(
 
         dbContext.SolicitudesPresupuesto.Add(solicitud);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await bitacoraService.RegistrarInfoAsync(
+            BitacoraAcciones.PresupuestoCreado,
+            BitacoraEntidades.SolicitudPresupuesto,
+            solicitud.Id,
+            "Solicitud de presupuesto creada.",
+            new
+            {
+                solicitud.Id,
+                solicitud.ServicioId,
+                solicitud.TipoEvento,
+                solicitud.FechaTentativaUtc,
+                solicitud.CantidadInvitados,
+                solicitud.Estado
+            },
+            cancellationToken);
 
         await TryEnqueueSolicitudCreadaAsync(solicitud, cancellationToken);
 
@@ -126,6 +143,7 @@ public sealed class SolicitudPresupuestoService(
             return ApiResponse<SolicitudPresupuestoResponseDto>.NotFound("Solicitud de presupuesto no encontrada.");
         }
 
+        var estadoAnterior = solicitud.Estado;
         solicitud.Nombre = request.Nombre.Trim();
         solicitud.Email = request.Email.Trim().ToLowerInvariant();
         solicitud.WhatsApp = Normalize(request.WhatsApp);
@@ -140,6 +158,23 @@ public sealed class SolicitudPresupuestoService(
         solicitud.FechaActualizacionUtc = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (!string.Equals(estadoAnterior, estado, StringComparison.OrdinalIgnoreCase))
+        {
+            await bitacoraService.RegistrarInfoAsync(
+                BitacoraAcciones.PresupuestoEstadoCambiado,
+                BitacoraEntidades.SolicitudPresupuesto,
+                solicitud.Id,
+                "Estado de solicitud de presupuesto actualizado.",
+                new
+                {
+                    solicitud.Id,
+                    EstadoAnterior = estadoAnterior,
+                    EstadoNuevo = estado,
+                    solicitud.Activa
+                },
+                cancellationToken);
+        }
 
         var updated = await QuerySolicitudes()
             .AsNoTracking()
@@ -171,6 +206,7 @@ public sealed class SolicitudPresupuestoService(
             return ApiResponse<SolicitudPresupuestoResponseDto>.NotFound("Solicitud de presupuesto no encontrada.");
         }
 
+        var estadoAnterior = solicitud.Estado;
         solicitud.Estado = estado;
         solicitud.FechaActualizacionUtc = DateTime.UtcNow;
         if (estado == SolicitudPresupuestoEstados.Cerrado)
@@ -179,6 +215,20 @@ public sealed class SolicitudPresupuestoService(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await bitacoraService.RegistrarInfoAsync(
+            BitacoraAcciones.PresupuestoEstadoCambiado,
+            BitacoraEntidades.SolicitudPresupuesto,
+            solicitud.Id,
+            "Estado de solicitud de presupuesto actualizado.",
+            new
+            {
+                solicitud.Id,
+                EstadoAnterior = estadoAnterior,
+                EstadoNuevo = estado,
+                solicitud.Activa
+            },
+            cancellationToken);
 
         var updated = await QuerySolicitudes()
             .AsNoTracking()

@@ -100,8 +100,23 @@ public sealed class CuponServiceTests
         return new CuponService(
             dbContext,
             currentUser,
+            CreateBitacoraService(),
             Substitute.For<INotificacionService>(),
             Substitute.For<ILogger<CuponService>>());
+    }
+
+    private static IBitacoraService CreateBitacoraService()
+    {
+        var bitacoraService = Substitute.For<IBitacoraService>();
+        bitacoraService.RegistrarInfoAsync(
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<Guid?>(),
+                Arg.Any<string>(),
+                Arg.Any<object?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+        return bitacoraService;
     }
 
     private static async Task SeedCouponAsync(AppDbContext dbContext, CuponDescuento cupon)

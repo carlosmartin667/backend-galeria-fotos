@@ -19,6 +19,15 @@ Este repositorio contiene solo el backend ASP.NET Core Web API. El frontend Angu
 - Unit of Work: `AppDbContext` coordina cambios y transacciones EF Core por request o scope.
 - ResourceAccessService: centraliza reglas de ownership y visibilidad para eventos, fotos y paquetes.
 
+## Bitacora Y Auditoria
+
+- La entidad `Bitacora` vive en `Fotografia.Domain` y se persiste con EF Core en `Fotografia.Infrastructure`.
+- `IBitacoraService` expone registro y consultas administrativas desde `Fotografia.Application`.
+- `BitacoraService` captura usuario actual, rol, IP, user agent, correlation id, ruta, metodo HTTP, accion, entidad, severidad y metadata sanitizada.
+- Los controllers no registran auditoria directamente; los hooks viven en services despues de operaciones confirmadas.
+- La consulta es solo Admin mediante `GET /api/Bitacora`, `GET /api/Bitacora/{id}` y `GET /api/Bitacora/resumen`.
+- Si falla el registro de auditoria, se loguea un warning seguro y no se rompe la operacion principal.
+
 ## Por Que No Hay Repository Generico
 
 No se usa Repository generico porque EF Core ya provee un repositorio/unit-of-work suficientemente expresivo con `DbSet` y `DbContext`. Agregar uno generico ocultaria capacidades utiles de EF, duplicaria abstracciones y no mejoraria la mantenibilidad actual. Si en el futuro se repiten consultas complejas, conviene extraer query services o specifications puntuales.

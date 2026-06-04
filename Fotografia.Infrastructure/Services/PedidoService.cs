@@ -17,6 +17,7 @@ public sealed class PedidoService(
     AppDbContext dbContext,
     IMapper mapper,
     ICurrentUserService currentUser,
+    IBitacoraService bitacoraService,
     INotificacionService notificacionService,
     ILogger<PedidoService> logger) : IPedidoService
 {
@@ -164,6 +165,25 @@ public sealed class PedidoService(
         dbContext.Pedidos.Add(pedido);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        await bitacoraService.RegistrarInfoAsync(
+            BitacoraAcciones.PedidoCreado,
+            BitacoraEntidades.Pedido,
+            pedido.Id,
+            "Pedido creado.",
+            new
+            {
+                pedido.Id,
+                pedido.ClienteId,
+                pedido.EventoId,
+                pedido.Subtotal,
+                pedido.DescuentoTotal,
+                pedido.Total,
+                pedido.Moneda,
+                Items = pedido.PedidoItems.Count,
+                Fotos = pedido.PedidoFotos.Count
+            },
+            cancellationToken);
+
         await TryEnqueuePedidoCreadoAsync(pedido, cliente, cancellationToken);
 
         var created = await QueryPedidos()
@@ -230,6 +250,21 @@ public sealed class PedidoService(
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await bitacoraService.RegistrarInfoAsync(
+            BitacoraAcciones.PedidoEstadoCambiado,
+            BitacoraEntidades.Pedido,
+            pedido.Id,
+            "Estado de pedido actualizado.",
+            new
+            {
+                pedido.Id,
+                pedido.ClienteId,
+                EstadoAnterior = estadoAnterior,
+                EstadoNuevo = estadoNuevo,
+                TieneComentario = comentario is not null
+            },
+            cancellationToken);
 
         if (estadoNuevo == PedidoEstados.ListoParaDescargar)
         {

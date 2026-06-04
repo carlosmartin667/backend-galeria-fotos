@@ -14,6 +14,7 @@ public sealed class TestimonioService(
     AppDbContext dbContext,
     ICurrentUserService currentUser,
     IResourceAccessService resourceAccessService,
+    IBitacoraService bitacoraService,
     INotificacionService notificacionService,
     ILogger<TestimonioService> logger) : ITestimonioService
 {
@@ -68,6 +69,23 @@ public sealed class TestimonioService(
 
         dbContext.Testimonios.Add(testimonio);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await bitacoraService.RegistrarInfoAsync(
+            BitacoraAcciones.TestimonioRecibido,
+            BitacoraEntidades.Testimonio,
+            testimonio.Id,
+            "Testimonio recibido.",
+            new
+            {
+                testimonio.Id,
+                testimonio.Calificacion,
+                testimonio.ClienteId,
+                testimonio.PedidoId,
+                testimonio.ServicioFotografiaId,
+                testimonio.EventoId
+            },
+            cancellationToken);
+
         await TryEnqueueTestimonioRecibidoAdminAsync(testimonio, cancellationToken);
 
         return ApiResponse<TestimonioAdminResponseDto>.Ok(MapAdmin(testimonio), "Testimonio recibido.");
@@ -120,6 +138,7 @@ public sealed class TestimonioService(
             return ApiResponse<TestimonioAdminResponseDto>.NotFound("Testimonio no encontrado.");
         }
 
+        var wasPublicado = testimonio.Publicado;
         testimonio.NombreCliente = request.NombreCliente.Trim();
         testimonio.EmailCliente = Normalize(request.EmailCliente);
         testimonio.Texto = request.Texto.Trim();
@@ -135,6 +154,11 @@ public sealed class TestimonioService(
         testimonio.FechaActualizacionUtc = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (!wasPublicado && testimonio.Publicado)
+        {
+            await RegistrarTestimonioPublicadoAsync(testimonio, cancellationToken);
+        }
 
         return ApiResponse<TestimonioAdminResponseDto>.Ok(MapAdmin(testimonio), "Testimonio actualizado.");
     }
@@ -183,10 +207,16 @@ public sealed class TestimonioService(
             return ApiResponse<TestimonioAdminResponseDto>.NotFound("Testimonio no encontrado.");
         }
 
+        var wasPublicado = testimonio.Publicado;
         testimonio.Publicado = publicado;
         testimonio.Activo = true;
         testimonio.FechaActualizacionUtc = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (publicado && !wasPublicado)
+        {
+            await RegistrarTestimonioPublicadoAsync(testimonio, cancellationToken);
+        }
 
         return ApiResponse<TestimonioAdminResponseDto>.Ok(MapAdmin(testimonio), message);
     }
@@ -339,6 +369,26 @@ public sealed class TestimonioService(
         {
             logger.LogWarning(ex, "No se pudo encolar notificacion de testimonio recibido. TestimonioId={TestimonioId}", testimonio.Id);
         }
+    }
+
+    private Task RegistrarTestimonioPublicadoAsync(Testimonio testimonio, CancellationToken cancellationToken)
+    {
+        return bitacoraService.RegistrarInfoAsync(
+            BitacoraAcciones.TestimonioPublicado,
+            BitacoraEntidades.Testimonio,
+            testimonio.Id,
+            "Testimonio publicado.",
+            new
+            {
+                testimonio.Id,
+                testimonio.Calificacion,
+                testimonio.ClienteId,
+                testimonio.PedidoId,
+                testimonio.ServicioFotografiaId,
+                testimonio.EventoId,
+                testimonio.Destacado
+            },
+            cancellationToken);
     }
 
     private static TestimonioPublicoResponseDto MapPublic(Testimonio testimonio)

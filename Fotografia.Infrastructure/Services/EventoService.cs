@@ -17,6 +17,7 @@ public sealed class EventoService(
     AppDbContext dbContext,
     IMapper mapper,
     ICurrentUserService currentUser,
+    IBitacoraService bitacoraService,
     INotificacionService notificacionService,
     ILogger<EventoService> logger) : IEventoService
 {
@@ -110,8 +111,37 @@ public sealed class EventoService(
         dbContext.Eventos.Add(evento);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        await bitacoraService.RegistrarInfoAsync(
+            BitacoraAcciones.EventoCreado,
+            BitacoraEntidades.Evento,
+            evento.Id,
+            "Evento creado.",
+            new
+            {
+                evento.Id,
+                evento.Estado,
+                evento.Visibilidad,
+                evento.ClientePrincipalId,
+                evento.FechaEventoUtc
+            },
+            cancellationToken);
+
         if (evento.Estado == EventoEstados.Publicado)
         {
+            await bitacoraService.RegistrarInfoAsync(
+                BitacoraAcciones.EventoPublicado,
+                BitacoraEntidades.Evento,
+                evento.Id,
+                "Evento publicado.",
+                new
+                {
+                    evento.Id,
+                    evento.Estado,
+                    evento.Visibilidad,
+                    evento.ClientePrincipalId
+                },
+                cancellationToken);
+
             await TryEnqueueEventoPublicadoAsync(evento, cancellationToken);
         }
 
@@ -151,6 +181,7 @@ public sealed class EventoService(
 
         var previousName = evento.Nombre;
         var previousEstado = evento.Estado;
+        var previousVisibilidad = evento.Visibilidad;
         evento.Nombre = request.Nombre.Trim();
         evento.Descripcion = request.Descripcion;
         evento.FechaEventoUtc = request.FechaEventoUtc;
@@ -168,9 +199,42 @@ public sealed class EventoService(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        if (!string.Equals(previousVisibilidad, visibilidad, StringComparison.OrdinalIgnoreCase))
+        {
+            await bitacoraService.RegistrarInfoAsync(
+                BitacoraAcciones.EventoVisibilidadCambiada,
+                BitacoraEntidades.Evento,
+                evento.Id,
+                "Visibilidad de evento actualizada.",
+                new
+                {
+                    evento.Id,
+                    VisibilidadAnterior = previousVisibilidad,
+                    VisibilidadNueva = visibilidad,
+                    evento.Estado,
+                    evento.ClientePrincipalId
+                },
+                cancellationToken);
+        }
+
         if (estado == EventoEstados.Publicado
             && !string.Equals(previousEstado, EventoEstados.Publicado, StringComparison.OrdinalIgnoreCase))
         {
+            await bitacoraService.RegistrarInfoAsync(
+                BitacoraAcciones.EventoPublicado,
+                BitacoraEntidades.Evento,
+                evento.Id,
+                "Evento publicado.",
+                new
+                {
+                    evento.Id,
+                    EstadoAnterior = previousEstado,
+                    EstadoNuevo = estado,
+                    evento.Visibilidad,
+                    evento.ClientePrincipalId
+                },
+                cancellationToken);
+
             await TryEnqueueEventoPublicadoAsync(evento, cancellationToken);
         }
 

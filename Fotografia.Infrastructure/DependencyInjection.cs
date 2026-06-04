@@ -42,6 +42,7 @@ public static class DependencyInjection
 
         services.AddScoped<IDatabaseInitializer, DatabaseInitializer>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<IBitacoraService, BitacoraService>();
         services.AddScoped<IResourceAccessService, ResourceAccessService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IEventoService, EventoService>();

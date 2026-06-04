@@ -16,6 +16,7 @@ public sealed class SesionPrivadaService(
     AppDbContext dbContext,
     IMapper mapper,
     ICurrentUserService currentUser,
+    IBitacoraService bitacoraService,
     INotificacionService notificacionService,
     ILogger<SesionPrivadaService> logger) : ISesionPrivadaService
 {
@@ -137,6 +138,24 @@ public sealed class SesionPrivadaService(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        if (!string.Equals(estadoAnterior, estado, StringComparison.OrdinalIgnoreCase))
+        {
+            await bitacoraService.RegistrarInfoAsync(
+                BitacoraAcciones.SesionPrivadaEstadoCambiado,
+                BitacoraEntidades.SesionPrivada,
+                sesion.Id,
+                "Estado de sesion privada actualizado.",
+                new
+                {
+                    sesion.Id,
+                    sesion.ClienteId,
+                    EstadoAnterior = estadoAnterior,
+                    EstadoNuevo = estado,
+                    sesion.Activa
+                },
+                cancellationToken);
+        }
+
         if (IsSesionListaParaCliente(estado)
             && !string.Equals(estadoAnterior, estado, StringComparison.OrdinalIgnoreCase))
         {
@@ -178,6 +197,21 @@ public sealed class SesionPrivadaService(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await bitacoraService.RegistrarInfoAsync(
+            BitacoraAcciones.SesionPrivadaEstadoCambiado,
+            BitacoraEntidades.SesionPrivada,
+            sesion.Id,
+            "Estado de sesion privada actualizado.",
+            new
+            {
+                sesion.Id,
+                sesion.ClienteId,
+                EstadoAnterior = estadoAnterior,
+                EstadoNuevo = estado,
+                sesion.Activa
+            },
+            cancellationToken);
 
         if (IsSesionListaParaCliente(estado)
             && !string.Equals(estadoAnterior, estado, StringComparison.OrdinalIgnoreCase))

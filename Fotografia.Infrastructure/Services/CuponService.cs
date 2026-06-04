@@ -13,6 +13,7 @@ namespace Fotografia.Infrastructure.Services;
 public sealed class CuponService(
     AppDbContext dbContext,
     ICurrentUserService currentUser,
+    IBitacoraService bitacoraService,
     INotificacionService notificacionService,
     ILogger<CuponService> logger) : ICuponService
 {
@@ -83,6 +84,23 @@ public sealed class CuponService(
 
         dbContext.CuponesDescuento.Add(cupon);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await bitacoraService.RegistrarInfoAsync(
+            BitacoraAcciones.CuponCreado,
+            BitacoraEntidades.Cupon,
+            cupon.Id,
+            "Cupon creado.",
+            new
+            {
+                cupon.Id,
+                cupon.Codigo,
+                cupon.TipoDescuento,
+                cupon.ValorDescuento,
+                cupon.Activo,
+                cupon.FechaInicioUtc,
+                cupon.FechaFinUtc
+            },
+            cancellationToken);
 
         return ApiResponse<CuponDescuentoResponseDto>.Ok(MapCupon(cupon), "Cupon creado.");
     }
@@ -258,6 +276,23 @@ public sealed class CuponService(
 
         foreach (var uso in usos)
         {
+            await bitacoraService.RegistrarInfoAsync(
+                BitacoraAcciones.CuponUsado,
+                BitacoraEntidades.Cupon,
+                uso.CuponDescuentoId,
+                "Uso de cupon confirmado.",
+                new
+                {
+                    CuponUsoId = uso.Id,
+                    uso.CuponDescuentoId,
+                    uso.PedidoId,
+                    uso.ClienteId,
+                    uso.UsuarioId,
+                    uso.Codigo,
+                    uso.MontoDescuento
+                },
+                cancellationToken);
+
             await TryEnqueueCuponUsadoAdminAsync(uso, cancellationToken);
         }
     }
@@ -307,6 +342,23 @@ public sealed class CuponService(
         }
 
         var discount = CalculateDiscount(cupon, subtotal);
+        await bitacoraService.RegistrarInfoAsync(
+            BitacoraAcciones.CuponAplicado,
+            BitacoraEntidades.Cupon,
+            cupon.Id,
+            "Cupon validado para aplicar.",
+            new
+            {
+                cupon.Id,
+                cupon.Codigo,
+                clienteId,
+                usuarioId,
+                Subtotal = subtotal,
+                Descuento = discount,
+                TotalFinal = Math.Max(0, subtotal - discount)
+            },
+            cancellationToken);
+
         return ApiResponse<CuponValidacionResponseDto>.Ok(new CuponValidacionResponseDto
         {
             Valido = true,

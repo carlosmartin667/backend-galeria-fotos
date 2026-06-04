@@ -14,6 +14,7 @@ public sealed class DescargaService(
     AppDbContext dbContext,
     IStorageService storageService,
     ICurrentUserService currentUser,
+    IBitacoraService bitacoraService,
     INotificacionService notificacionService,
     ILogger<DescargaService> logger) : IDescargaService
 {
@@ -157,6 +158,24 @@ public sealed class DescargaService(
         dbContext.Descargas.Add(descarga);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        await bitacoraService.RegistrarInfoAsync(
+            BitacoraAcciones.DescargaGenerada,
+            BitacoraEntidades.Descarga,
+            descarga.Id,
+            "Link de descarga generado.",
+            new
+            {
+                DescargaId = descarga.Id,
+                descarga.PedidoId,
+                descarga.EventoId,
+                descarga.ClienteId,
+                descarga.FotoId,
+                descarga.FotoPrivadaId,
+                descarga.ExpiraEnUtc,
+                descarga.MaxDescargas
+            },
+            cancellationToken);
+
         logger.LogInformation("Descarga creada. DescargaId={DescargaId} PedidoId={PedidoId}", descarga.Id, pedido.Id);
         await TryEnqueueDescargaLinkGeneradoAsync(descarga, pedido, cancellationToken);
 
@@ -247,6 +266,25 @@ public sealed class DescargaService(
 
         dbContext.Descargas.Add(descargaNueva);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await bitacoraService.RegistrarInfoAsync(
+            BitacoraAcciones.DescargaRegenerada,
+            BitacoraEntidades.Descarga,
+            descargaNueva.Id,
+            "Descarga regenerada.",
+            new
+            {
+                DescargaAnteriorId = descargaAnterior.Id,
+                DescargaNuevaId = descargaNueva.Id,
+                descargaNueva.PedidoId,
+                descargaNueva.EventoId,
+                descargaNueva.ClienteId,
+                descargaNueva.FotoId,
+                descargaNueva.FotoPrivadaId,
+                descargaNueva.ExpiraEnUtc,
+                descargaNueva.MaxDescargas
+            },
+            cancellationToken);
 
         logger.LogInformation(
             "Descarga regenerada. DescargaAnteriorId={DescargaAnteriorId} DescargaNuevaId={DescargaNuevaId}",

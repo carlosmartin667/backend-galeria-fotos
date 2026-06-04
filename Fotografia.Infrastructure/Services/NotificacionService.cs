@@ -17,6 +17,7 @@ public sealed class NotificacionService(
     IEmailService emailService,
     ICurrentUserService currentUser,
     IOptions<NotificationsSettings> options,
+    IBitacoraService bitacoraService,
     ILogger<NotificacionService> logger) : INotificacionService
 {
     private readonly NotificationsSettings _settings = options.Value;
@@ -227,6 +228,23 @@ public sealed class NotificacionService(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        await bitacoraService.RegistrarInfoAsync(
+            BitacoraAcciones.NotificacionReenviada,
+            BitacoraEntidades.Notificacion,
+            notificacion.Id,
+            "Notificacion reencolada.",
+            new
+            {
+                notificacion.Id,
+                notificacion.Tipo,
+                notificacion.Canal,
+                notificacion.Estado,
+                notificacion.EntidadTipo,
+                notificacion.EntidadId,
+                notificacion.UsuarioId
+            },
+            cancellationToken);
+
         return ApiResponse<NotificacionResponseDto>.Ok(MapNotificacion(notificacion), "Notificacion reencolada.");
     }
 
@@ -247,6 +265,23 @@ public sealed class NotificacionService(
         notificacion.Activa = false;
         notificacion.FechaActualizacionUtc = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await bitacoraService.RegistrarInfoAsync(
+            BitacoraAcciones.NotificacionCancelada,
+            BitacoraEntidades.Notificacion,
+            notificacion.Id,
+            "Notificacion cancelada.",
+            new
+            {
+                notificacion.Id,
+                notificacion.Tipo,
+                notificacion.Canal,
+                notificacion.Estado,
+                notificacion.EntidadTipo,
+                notificacion.EntidadId,
+                notificacion.UsuarioId
+            },
+            cancellationToken);
 
         return ApiResponse<NotificacionResponseDto>.Ok(MapNotificacion(notificacion), "Notificacion cancelada.");
     }

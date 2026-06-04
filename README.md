@@ -154,3 +154,23 @@ Los endpoints publicos sensibles usan rate limiting configurable:
 ```
 
 En desarrollo el limite puede ajustarse con `appsettings.Local.json`, user-secrets o variables de entorno, por ejemplo `RateLimiting__SensitivePublic__PermitLimit`.
+
+## Bitacora administrativa
+
+La Fase 6D agrega auditoria operativa en la tabla `Bitacora`. Los endpoints son solo Admin:
+
+```http
+GET /api/Bitacora
+GET /api/Bitacora/{id}
+GET /api/Bitacora/resumen
+```
+
+Filtros soportados en `GET /api/Bitacora`: `desde`, `hasta`, `usuarioId`, `usuarioEmail`, `accion`, `entidadTipo`, `entidadId`, `severidad`, `correlationId`, `page` y `pageSize`.
+
+Ejemplo de migracion:
+
+```powershell
+dotnet tool run dotnet-ef database update --project .\Fotografia.Infrastructure\Fotografia.Infrastructure.csproj --startup-project .\Fotografia.Api\Fotografia.Api.csproj
+```
+
+La metadata se sanitiza antes de persistirse: no se guardan passwords, tokens, API keys, URLs firmadas ni storage keys.

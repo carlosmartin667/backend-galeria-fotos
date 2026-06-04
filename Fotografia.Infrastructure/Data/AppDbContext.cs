@@ -39,6 +39,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<Promocion> Promociones => Set<Promocion>();
     public DbSet<Testimonio> Testimonios => Set<Testimonio>();
     public DbSet<CarritoAbandonadoRegistro> CarritoAbandonadoRegistros => Set<CarritoAbandonadoRegistro>();
+    public DbSet<Bitacora> Bitacora => Set<Bitacora>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -58,6 +59,36 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.Instagram).HasMaxLength(120);
             entity.Property(x => x.CorreoPublico).HasMaxLength(160);
             entity.Property(x => x.Direccion).HasMaxLength(300);
+        });
+
+        modelBuilder.Entity<Bitacora>(entity =>
+        {
+            entity.ToTable("Bitacora");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.FechaUtc);
+            entity.HasIndex(x => new { x.UsuarioId, x.FechaUtc });
+            entity.HasIndex(x => new { x.UsuarioEmail, x.FechaUtc });
+            entity.HasIndex(x => new { x.EntidadTipo, x.EntidadId, x.FechaUtc });
+            entity.HasIndex(x => new { x.Accion, x.FechaUtc });
+            entity.HasIndex(x => new { x.Severidad, x.FechaUtc });
+            entity.HasIndex(x => x.CorrelationId);
+            entity.Property(x => x.UsuarioEmail).HasMaxLength(256);
+            entity.Property(x => x.Rol).HasMaxLength(64);
+            entity.Property(x => x.Accion).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.EntidadTipo).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Descripcion).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.Ip).HasMaxLength(64);
+            entity.Property(x => x.UserAgent).HasMaxLength(500);
+            entity.Property(x => x.CorrelationId).HasMaxLength(120);
+            entity.Property(x => x.RequestPath).HasMaxLength(300);
+            entity.Property(x => x.HttpMethod).HasMaxLength(16);
+            entity.Property(x => x.MetadataJson).HasMaxLength(4000);
+            entity.Property(x => x.Severidad).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.FechaUtc).IsRequired();
+            entity.HasOne(x => x.Usuario)
+                .WithMany()
+                .HasForeignKey(x => x.UsuarioId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Notificacion>(entity =>

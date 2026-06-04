@@ -24,6 +24,7 @@ public sealed class MercadoPagoService(
     ILogger<MercadoPagoService> logger,
     ICurrentUserService currentUser,
     INotificacionService notificacionService,
+    IBitacoraService bitacoraService,
     ICuponService cuponService) : IMercadoPagoService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -232,8 +233,46 @@ public sealed class MercadoPagoService(
 
         if (PedidoEstados.EsPagado(estadoNuevo, pago.Estado))
         {
+            await bitacoraService.RegistrarInfoAsync(
+                BitacoraAcciones.PagoAprobado,
+                BitacoraEntidades.Pago,
+                pago.Id,
+                "Pago aprobado por webhook.",
+                new
+                {
+                    PagoId = pago.Id,
+                    PedidoId = pedido.Id,
+                    pedido.ClienteId,
+                    EstadoAnteriorPedido = estadoAnterior,
+                    EstadoNuevoPedido = estadoNuevo,
+                    PagoEstado = pago.Estado,
+                    pago.Monto,
+                    pago.Moneda
+                },
+                cancellationToken);
+
             await cuponService.ConfirmarUsoPorPedidoAsync(pedido.Id, cancellationToken);
             await TryEnqueuePagoAprobadoAsync(pedido, pago, cancellationToken);
+        }
+        else
+        {
+            await bitacoraService.RegistrarWarningAsync(
+                BitacoraAcciones.PagoRechazado,
+                BitacoraEntidades.Pago,
+                pago.Id,
+                "Pago no aprobado por webhook.",
+                new
+                {
+                    PagoId = pago.Id,
+                    PedidoId = pedido.Id,
+                    pedido.ClienteId,
+                    EstadoAnteriorPedido = estadoAnterior,
+                    EstadoNuevoPedido = estadoNuevo,
+                    PagoEstado = pago.Estado,
+                    pago.Monto,
+                    pago.Moneda
+                },
+                cancellationToken);
         }
 
         return ApiResponse<PagoResponseDto>.Ok(mapper.Map<PagoResponseDto>(pago), "Webhook procesado.");

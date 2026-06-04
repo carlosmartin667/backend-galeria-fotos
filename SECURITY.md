@@ -48,6 +48,14 @@ Los endpoints publicos sensibles usan la politica `SensitivePublic`, configurabl
 - No loguear API keys, JWT, URLs firmadas, passwords ni payloads completos de proveedores externos.
 - Los errores 500 devuelven mensaje seguro e incluyen `traceId` y `correlationId`.
 
+## Bitacora Segura
+
+- La bitacora puede guardar `UsuarioId`, `UsuarioEmail`, rol, accion, entidad, IP, user agent, correlation id y metadata operativa.
+- No guardar passwords, JWT, API keys, tokens, URLs firmadas, `StorageKey`, `MarcaAguaStorageKey`, payloads crudos de proveedores ni bodies completos.
+- `AuditMetadataSanitizer` redacta claves sensibles y URLs con firmas o tokens antes de persistir `MetadataJson`.
+- Los endpoints de bitacora son solo Admin. Un usuario sin token debe recibir 401 y un Usuario no admin debe recibir 403.
+- El registro de auditoria no debe bloquear pagos, pedidos, descargas, notificaciones ni operaciones principales si falla.
+
 ## CORS
 
 CORS se limita a los origenes configurados en `Cors:AllowedOrigins`. En produccion debe apuntar solo al dominio real del frontend.

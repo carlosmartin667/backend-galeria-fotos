@@ -13,6 +13,7 @@ namespace Fotografia.Infrastructure.Services;
 public sealed class PromocionService(
     AppDbContext dbContext,
     ICurrentUserService currentUser,
+    IBitacoraService bitacoraService,
     INotificacionService notificacionService,
     ILogger<PromocionService> logger) : IPromocionService
 {
@@ -99,6 +100,7 @@ public sealed class PromocionService(
 
         if (promocion.Activa)
         {
+            await RegistrarPromocionActivadaAsync(promocion, cancellationToken);
             await TryEnqueuePromocionActivaAdminAsync(promocion, cancellationToken);
         }
 
@@ -145,6 +147,7 @@ public sealed class PromocionService(
 
         if (wasInactive && promocion.Activa)
         {
+            await RegistrarPromocionActivadaAsync(promocion, cancellationToken);
             await TryEnqueuePromocionActivaAdminAsync(promocion, cancellationToken);
         }
 
@@ -202,6 +205,7 @@ public sealed class PromocionService(
 
         if (wasInactive && activa)
         {
+            await RegistrarPromocionActivadaAsync(promocion, cancellationToken);
             await TryEnqueuePromocionActivaAdminAsync(promocion, cancellationToken);
         }
 
@@ -282,6 +286,26 @@ public sealed class PromocionService(
         {
             logger.LogWarning(ex, "No se pudo encolar notificacion de promocion activa. PromocionId={PromocionId}", promocion.Id);
         }
+    }
+
+    private Task RegistrarPromocionActivadaAsync(Promocion promocion, CancellationToken cancellationToken)
+    {
+        return bitacoraService.RegistrarInfoAsync(
+            BitacoraAcciones.PromocionActivada,
+            BitacoraEntidades.Promocion,
+            promocion.Id,
+            "Promocion activada.",
+            new
+            {
+                promocion.Id,
+                promocion.Tipo,
+                promocion.FechaInicioUtc,
+                promocion.FechaFinUtc,
+                promocion.CuponDescuentoId,
+                promocion.ServicioFotografiaId,
+                promocion.EventoId
+            },
+            cancellationToken);
     }
 
     private static PromocionResponseDto Map(Promocion promocion)
