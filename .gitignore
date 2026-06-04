@@ -22,10 +22,15 @@ bld/
 .build-check/
 
 ## ASP.NET / secrets
+Fotografia.Api/appsettings.Local.json
 appsettings.Development.json
 appsettings.Local.json
 appsettings.*.local.json
+*.local.json
 secrets.json
+scripts/local/create-appsettings-local.ps1
+scripts/local/set-pexels-secret.ps1
+scripts/local/*.secret.ps1
 *.pfx
 *.p12
 *.key

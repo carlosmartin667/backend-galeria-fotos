@@ -1,0 +1,77 @@
+using System.ComponentModel.DataAnnotations;
+using Fotografia.Application.DTOs.Fotos;
+
+namespace Fotografia.Application.DTOs.Pedidos;
+
+public sealed class CrearPedidoRequestDto
+{
+    [Required]
+    public Guid EventoId { get; set; }
+
+    [Required]
+    public Guid ClienteId { get; set; }
+
+    [MinLength(1)]
+    public List<Guid> FotoIds { get; set; } = [];
+}
+
+public sealed class PedidoFotoResponseDto
+{
+    public Guid FotoId { get; set; }
+    public int Cantidad { get; set; }
+    public decimal PrecioUnitario { get; set; }
+    public FotoResponseDto? Foto { get; set; }
+}
+
+public sealed class PedidoItemResponseDto
+{
+    public Guid Id { get; set; }
+    public string TipoItem { get; set; } = string.Empty;
+    public Guid? FotoId { get; set; }
+    public Guid? PaqueteEventoId { get; set; }
+    public Guid? FotoPrivadaId { get; set; }
+    public string Descripcion { get; set; } = string.Empty;
+    public decimal PrecioUnitario { get; set; }
+    public int Cantidad { get; set; }
+    public decimal Subtotal { get; set; }
+}
+
+public sealed class PedidoResponseDto
+{
+    public Guid Id { get; set; }
+    public Guid? EventoId { get; set; }
+    public Guid ClienteId { get; set; }
+    public string Estado { get; set; } = string.Empty;
+    public decimal Subtotal { get; set; }
+    public decimal DescuentoTotal { get; set; }
+    public decimal Total { get; set; }
+    public string? CuponCodigo { get; set; }
+    public Guid? CuponDescuentoId { get; set; }
+    public string Moneda { get; set; } = string.Empty;
+    public string? MercadoPagoPreferenceId { get; set; }
+    public DateTime CreadoEnUtc { get; set; }
+    public List<PedidoFotoResponseDto> Fotos { get; set; } = [];
+    public List<PedidoItemResponseDto> Items { get; set; } = [];
+}
+
+public sealed class CambiarEstadoPedidoRequestDto
+{
+    [Required]
+    [MaxLength(64)]
+    public string Estado { get; set; } = string.Empty;
+
+    [MaxLength(1000)]
+    public string? Comentario { get; set; }
+}
+
+public sealed class PedidoEstadoHistorialResponseDto
+{
+    public Guid Id { get; set; }
+    public Guid PedidoId { get; set; }
+    public string EstadoAnterior { get; set; } = string.Empty;
+    public string EstadoNuevo { get; set; } = string.Empty;
+    public string? Comentario { get; set; }
+    public Guid? UsuarioId { get; set; }
+    public string? UsuarioNombre { get; set; }
+    public DateTime FechaCambioUtc { get; set; }
+}
