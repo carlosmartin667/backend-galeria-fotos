@@ -9,6 +9,12 @@ Backend ASP.NET Core Web API para gestion de eventos fotograficos, clientes, fot
 - `Fotografia.Domain`: entidades principales del negocio.
 - `Fotografia.Infrastructure`: EF Core, SQL Server/Azure SQL, Mercado Pago, Resend, Cloudflare R2 y JWT.
 
+Documentacion tecnica:
+
+- [Arquitectura](ARCHITECTURE.md)
+- [Testing](TESTING.md)
+- [Seguridad](SECURITY.md)
+
 ## Ejecucion local
 
 Abrir `fotografia-backend-api.slnx` en Visual Studio 2026 o ejecutar:
@@ -125,13 +131,15 @@ No guardes claves reales en `appsettings.json`, `appsettings.Development.json` n
 
 ## Salud y limites de solicitudes
 
-La API expone un health check simple en:
+La API expone health checks en:
 
 ```http
 GET /health
+GET /health/live
+GET /health/ready
 ```
 
-Incluye una verificacion de conexion a la base de datos y no expone secretos.
+`/health/live` indica que el proceso responde. `/health/ready` incluye la verificacion de base de datos. Ningun health check expone secretos.
 
 Los endpoints publicos sensibles usan rate limiting configurable:
 

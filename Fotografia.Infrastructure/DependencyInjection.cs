@@ -3,23 +3,22 @@ using Fotografia.Infrastructure.Data;
 using Fotografia.Infrastructure.Security;
 using Fotografia.Infrastructure.Services;
 using Fotografia.Infrastructure.Settings;
+using Fotografia.Infrastructure.Settings.Validation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Fotografia.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment? environment = null)
     {
-        services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
-        services.Configure<MercadoPagoSettings>(configuration.GetSection(MercadoPagoSettings.SectionName));
-        services.Configure<ResendSettings>(configuration.GetSection(ResendSettings.SectionName));
-        services.Configure<CloudflareR2Settings>(configuration.GetSection(CloudflareR2Settings.SectionName));
-        services.Configure<DatabaseSettings>(configuration.GetSection(DatabaseSettings.SectionName));
-        services.Configure<PexelsSettings>(configuration.GetSection(PexelsSettings.SectionName));
-        services.Configure<NotificationsSettings>(configuration.GetSection(NotificationsSettings.SectionName));
+        services.AddValidatedInfrastructureOptions(configuration, environment);
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection no esta configurado.");
