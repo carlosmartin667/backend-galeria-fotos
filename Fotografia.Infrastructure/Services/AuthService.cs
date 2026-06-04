@@ -1,6 +1,8 @@
 using AutoMapper;
 using Fotografia.Infrastructure.Data;
 using Fotografia.Application.DTOs.Auth;
+using Fotografia.Application.DTOs.Bitacora;
+using Fotografia.Domain.Constants;
 using Fotografia.Domain.Entities;
 using Fotografia.Application.Helpers;
 using Fotografia.Application.Security;
@@ -17,7 +19,8 @@ public sealed class AuthService(
     AppDbContext dbContext,
     IMapper mapper,
     JwtHelper jwtHelper,
-    IOptions<JwtSettings> jwtOptions) : IAuthService
+    IOptions<JwtSettings> jwtOptions,
+    IBitacoraService bitacoraService) : IAuthService
 {
     private readonly PasswordHasher<Usuario> _passwordHasher = new();
     private readonly JwtSettings _jwtSettings = jwtOptions.Value;
@@ -49,6 +52,18 @@ public sealed class AuthService(
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await bitacoraService.RegistrarAsync(new CrearBitacoraRequestDto
+        {
+            UsuarioId = usuario.Id,
+            UsuarioEmail = usuario.Email,
+            Rol = usuario.Rol,
+            Accion = BitacoraAcciones.RegistroUsuario,
+            EntidadTipo = BitacoraEntidades.Usuario,
+            EntidadId = usuario.Id,
+            Descripcion = "Usuario registrado desde endpoint publico.",
+            Metadata = new { usuario.Id, usuario.Email, usuario.Rol },
+            Severidad = BitacoraSeveridades.Info
+        }, cancellationToken);
 
         return ApiResponse<AuthResponseDto>.Ok(CreateAuthResponse(usuario));
     }
@@ -59,14 +74,48 @@ public sealed class AuthService(
         var usuario = await dbContext.Usuarios.FirstOrDefaultAsync(x => x.Email == normalizedEmail, cancellationToken);
         if (usuario is null || !usuario.Activo)
         {
+            await bitacoraService.RegistrarAsync(new CrearBitacoraRequestDto
+            {
+                UsuarioEmail = normalizedEmail,
+                Accion = BitacoraAcciones.LoginFallido,
+                EntidadTipo = BitacoraEntidades.Usuario,
+                Descripcion = "Intento de login fallido.",
+                Metadata = new { Email = normalizedEmail, Motivo = "Usuario inexistente o inactivo" },
+                Severidad = BitacoraSeveridades.Warning
+            }, cancellationToken);
             return ApiResponse<AuthResponseDto>.Fail("Credenciales invalidas.");
         }
 
         var verification = _passwordHasher.VerifyHashedPassword(usuario, usuario.PasswordHash, request.Password);
         if (verification == PasswordVerificationResult.Failed)
         {
+            await bitacoraService.RegistrarAsync(new CrearBitacoraRequestDto
+            {
+                UsuarioId = usuario.Id,
+                UsuarioEmail = usuario.Email,
+                Rol = usuario.Rol,
+                Accion = BitacoraAcciones.LoginFallido,
+                EntidadTipo = BitacoraEntidades.Usuario,
+                EntidadId = usuario.Id,
+                Descripcion = "Intento de login fallido.",
+                Metadata = new { usuario.Id, usuario.Email, Motivo = "Password invalido" },
+                Severidad = BitacoraSeveridades.Warning
+            }, cancellationToken);
             return ApiResponse<AuthResponseDto>.Fail("Credenciales invalidas.");
         }
+
+        await bitacoraService.RegistrarAsync(new CrearBitacoraRequestDto
+        {
+            UsuarioId = usuario.Id,
+            UsuarioEmail = usuario.Email,
+            Rol = usuario.Rol,
+            Accion = BitacoraAcciones.LoginExitoso,
+            EntidadTipo = BitacoraEntidades.Usuario,
+            EntidadId = usuario.Id,
+            Descripcion = "Login exitoso.",
+            Metadata = new { usuario.Id, usuario.Email, usuario.Rol },
+            Severidad = BitacoraSeveridades.Info
+        }, cancellationToken);
 
         return ApiResponse<AuthResponseDto>.Ok(CreateAuthResponse(usuario));
     }

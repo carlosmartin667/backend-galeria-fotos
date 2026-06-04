@@ -39,9 +39,12 @@ public sealed class EmailService(
         using var response = await httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            logger.LogWarning("Resend rejected email request with status {StatusCode}: {Body}", response.StatusCode, body);
-            return ApiResponse<bool>.Fail("No se pudo enviar el email.");
+            logger.LogWarning(
+                "Proveedor externo rechazo la operacion. Provider={Provider} Operation={Operation} StatusCode={StatusCode}",
+                "Resend",
+                "SendEmail",
+                response.StatusCode);
+            return ApiResponse<bool>.ExternalDependency("No se pudo enviar el email.");
         }
 
         return ApiResponse<bool>.Ok(true, "Email enviado.");

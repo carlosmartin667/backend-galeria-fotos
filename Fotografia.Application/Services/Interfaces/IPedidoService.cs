@@ -10,4 +10,6 @@ public interface IPedidoService
     Task<ApiResponse<PaginatedResponseDto<PedidoResponseDto>>> GetPaginatedAsync(PaginationQueryDto pagination, CancellationToken cancellationToken = default);
     Task<ApiResponse<PedidoResponseDto>> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ApiResponse<PedidoResponseDto>> CreateAsync(CrearPedidoRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PedidoResponseDto>> CambiarEstadoAsync(Guid id, CambiarEstadoPedidoRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyCollection<PedidoEstadoHistorialResponseDto>>> GetHistorialEstadosAsync(Guid id, CancellationToken cancellationToken = default);
 }

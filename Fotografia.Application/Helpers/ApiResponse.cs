@@ -40,8 +40,28 @@ public sealed class ApiResponse<T>
         return Fail(message, 404);
     }
 
+    public static ApiResponse<T> Unauthorized(string message)
+    {
+        return Fail(message, 401);
+    }
+
     public static ApiResponse<T> Forbidden(string message)
     {
         return Fail(message, 403);
+    }
+
+    public static ApiResponse<T> Conflict(string message)
+    {
+        return Fail(message, 409);
+    }
+
+    public static ApiResponse<T> ExternalDependency(string message, int statusCode = 502)
+    {
+        return Fail(message, statusCode);
+    }
+
+    public static ApiResponse<T> InternalError(string message)
+    {
+        return Fail(message, 500);
     }
 }

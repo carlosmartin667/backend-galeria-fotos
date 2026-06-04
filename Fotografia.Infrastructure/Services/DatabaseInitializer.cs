@@ -26,7 +26,7 @@ public sealed class DatabaseInitializer(
                 logger.LogWarning("Database reset is enabled for Development. The database will be deleted and recreated.");
                 await dbContext.Database.EnsureDeletedAsync(cancellationToken);
                 await dbContext.Database.MigrateAsync(cancellationToken);
-                await DbInitializer.SeedTestDataAsync(dbContext, cancellationToken);
+                await DbInitializer.SeedTestDataAsync(dbContext, logger, cancellationToken);
                 return;
             }
 
@@ -41,7 +41,7 @@ public sealed class DatabaseInitializer(
 
             if (shouldSeed)
             {
-                await DbInitializer.SeedTestDataAsync(dbContext, cancellationToken);
+                await DbInitializer.SeedTestDataAsync(dbContext, logger, cancellationToken);
             }
         }
         catch (Exception ex)

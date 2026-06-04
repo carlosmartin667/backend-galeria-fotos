@@ -1,6 +1,7 @@
 using Fotografia.Application.DTOs.Auth;
 using Fotografia.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Fotografia.Api.Controllers;
 
@@ -9,6 +10,7 @@ namespace Fotografia.Api.Controllers;
 public sealed class AuthController(IAuthService authService) : ControllerBase
 {
     [HttpPost("register")]
+    [EnableRateLimiting("SensitivePublic")]
     public async Task<IActionResult> Register(RegisterRequestDto request, CancellationToken cancellationToken)
     {
         var result = await authService.RegisterAsync(request, cancellationToken);
@@ -16,6 +18,7 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting("SensitivePublic")]
     public async Task<IActionResult> Login(LoginRequestDto request, CancellationToken cancellationToken)
     {
         var result = await authService.LoginAsync(request, cancellationToken);

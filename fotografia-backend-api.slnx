@@ -3,4 +3,6 @@
   <Project Path="Fotografia.Application/Fotografia.Application.csproj" />
   <Project Path="Fotografia.Domain/Fotografia.Domain.csproj" />
   <Project Path="Fotografia.Infrastructure/Fotografia.Infrastructure.csproj" />
+  <Project Path="Fotografia.Tests.Unit/Fotografia.Tests.Unit.csproj" />
+  <Project Path="Fotografia.Tests.Integration/Fotografia.Tests.Integration.csproj" />
 </Solution>

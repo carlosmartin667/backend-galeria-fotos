@@ -11,5 +11,6 @@ public interface IEventoService
     Task<ApiResponse<EventoResponseDto>> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ApiResponse<EventoResponseDto>> CreateAsync(CrearEventoRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<EventoResponseDto>> UpdateAsync(Guid id, ActualizarEventoRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<EventoResponseDto>> SetPortadaAsync(Guid eventoId, Guid fotoId, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 }

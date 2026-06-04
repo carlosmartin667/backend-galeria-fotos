@@ -22,4 +22,8 @@ public sealed class Usuario
     public ICollection<ComentarioFoto> ComentariosFotos { get; set; } = [];
     public ICollection<EventoFavorito> EventosFavoritos { get; set; } = [];
     public ICollection<FotoFavorita> FotosFavoritas { get; set; } = [];
+    public ICollection<CarritoCompra> CarritosCompra { get; set; } = [];
+    public ICollection<Notificacion> Notificaciones { get; set; } = [];
+    public ICollection<CuponUso> CuponUsos { get; set; } = [];
+    public ICollection<CarritoAbandonadoRegistro> CarritosAbandonados { get; set; } = [];
 }

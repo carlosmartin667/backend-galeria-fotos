@@ -2,10 +2,12 @@ using Fotografia.Api.Helpers;
 using Fotografia.Application.DTOs.Comentarios;
 using Fotografia.Application.DTOs.Common;
 using Fotografia.Application.DTOs.Eventos;
+using Fotografia.Application.DTOs.Paquetes;
 using Fotografia.Application.Security;
 using Fotografia.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Fotografia.Api.Controllers;
 
@@ -13,7 +15,8 @@ namespace Fotografia.Api.Controllers;
 [Route("api/[controller]")]
 public sealed class EventosController(
     IEventoService eventoService,
-    IComentarioEventoService comentarioEventoService) : ControllerBase
+    IComentarioEventoService comentarioEventoService,
+    IPaqueteEventoService paqueteEventoService) : ControllerBase
 {
     [HttpGet]
     [AllowAnonymous]
@@ -65,6 +68,46 @@ public sealed class EventosController(
         return this.ToActionResult(result);
     }
 
+    [HttpPut("{eventoId:guid}/portada/{fotoId:guid}")]
+    [Authorize(Roles = SistemaRoles.Admin)]
+    public async Task<IActionResult> SetPortada(Guid eventoId, Guid fotoId, CancellationToken cancellationToken)
+    {
+        var result = await eventoService.SetPortadaAsync(eventoId, fotoId, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpGet("{eventoId:guid}/paquetes")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetPaquetes(Guid eventoId, CancellationToken cancellationToken)
+    {
+        var result = await paqueteEventoService.GetByEventoAsync(eventoId, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpPost("{eventoId:guid}/paquetes")]
+    [Authorize(Roles = SistemaRoles.Admin)]
+    public async Task<IActionResult> CreatePaquete(Guid eventoId, CrearPaqueteEventoRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await paqueteEventoService.CreateAsync(eventoId, request, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpPut("paquetes/{paqueteId:guid}")]
+    [Authorize(Roles = SistemaRoles.Admin)]
+    public async Task<IActionResult> UpdatePaquete(Guid paqueteId, ActualizarPaqueteEventoRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await paqueteEventoService.UpdateAsync(paqueteId, request, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpDelete("paquetes/{paqueteId:guid}")]
+    [Authorize(Roles = SistemaRoles.Admin)]
+    public async Task<IActionResult> DeletePaquete(Guid paqueteId, CancellationToken cancellationToken)
+    {
+        var result = await paqueteEventoService.DeleteAsync(paqueteId, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
     [HttpGet("{eventoId:guid}/comentarios")]
     [AllowAnonymous]
     public async Task<IActionResult> GetComentarios(Guid eventoId, CancellationToken cancellationToken)
@@ -75,6 +118,7 @@ public sealed class EventosController(
 
     [HttpPost("{eventoId:guid}/comentarios")]
     [Authorize(Roles = SistemaRoles.AdminUsuario)]
+    [EnableRateLimiting("SensitivePublic")]
     public async Task<IActionResult> CreateComentario(Guid eventoId, ComentarioRequestDto request, CancellationToken cancellationToken)
     {
         var result = await comentarioEventoService.CreateAsync(eventoId, request, cancellationToken);

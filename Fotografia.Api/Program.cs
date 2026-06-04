@@ -1,13 +1,20 @@
 using System.Text;
 using Fotografia.Api.Helpers;
+using Fotografia.Api.Middleware;
 using Fotografia.Application;
+using Fotografia.Application.Helpers;
 using Fotografia.Application.Services.Interfaces;
 using Fotografia.Infrastructure;
+using Fotografia.Infrastructure.Health;
 using Fotografia.Infrastructure.Settings;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 ApplyLocalSettingsFile(builder.Configuration, builder.Environment.ContentRootPath, Directory.GetCurrentDirectory());
@@ -37,10 +44,13 @@ builder.Services.AddSwaggerGen(options =>
 });
 builder.Services.AddProblemDetails();
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
+builder.Services.AddHealthChecks()
+    .AddCheck<AppDbContextHealthCheck>("database", tags: ["ready"]);
 
 var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
     ?? throw new InvalidOperationException("La seccion Jwt no esta configurada.");
+ValidateJwtSettingsForAuthentication(jwtSettings, builder.Environment.IsDevelopment());
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -60,6 +70,29 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    var permitLimit = Math.Max(1, builder.Configuration.GetValue<int?>("RateLimiting:SensitivePublic:PermitLimit") ?? 60);
+    var windowSeconds = Math.Max(1, builder.Configuration.GetValue<int?>("RateLimiting:SensitivePublic:WindowSeconds") ?? 60);
+    var queueLimit = Math.Max(0, builder.Configuration.GetValue<int?>("RateLimiting:SensitivePublic:QueueLimit") ?? 0);
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("SensitivePublic", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = permitLimit;
+        limiterOptions.Window = TimeSpan.FromSeconds(windowSeconds);
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = queueLimit;
+        limiterOptions.AutoReplenishment = true;
+    });
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            ApiResponse<object>.Fail("Demasiadas solicitudes. Intente nuevamente en unos minutos.", StatusCodes.Status429TooManyRequests),
+            cancellationToken);
+    };
+});
 
 builder.Services.AddCors(options =>
 {
@@ -79,7 +112,40 @@ var app = builder.Build();
 var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
 startupLogger.LogInformation(
     "Pexels API Key configurada: {Configurada}",
-    string.IsNullOrWhiteSpace(app.Configuration["Pexels:ApiKey"]) ? "no" : "sí");
+    string.IsNullOrWhiteSpace(app.Configuration["Pexels:ApiKey"]) ? "no" : "si");
+
+app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseExceptionHandler(exceptionApp =>
+{
+    exceptionApp.Run(async context =>
+    {
+        var exceptionFeature = context.Features.Get<IExceptionHandlerFeature>();
+        var logger = context.RequestServices
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("GlobalExceptionHandler");
+        var correlationId = GetCorrelationId(context);
+
+        logger.LogError(
+            exceptionFeature?.Error,
+            "Unhandled exception. TraceIdentifier={TraceIdentifier} CorrelationId={CorrelationId}",
+            context.TraceIdentifier,
+            correlationId);
+
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        await context.Response.WriteAsJsonAsync(
+            new
+            {
+                Success = false,
+                Message = "Ocurrio un error inesperado.",
+                Data = (object?)null,
+                Errors = Array.Empty<string>(),
+                StatusCode = StatusCodes.Status500InternalServerError,
+                TraceId = context.TraceIdentifier,
+                CorrelationId = correlationId
+            },
+            context.RequestAborted);
+    });
+});
 
 if (app.Environment.IsDevelopment())
 {
@@ -106,11 +172,45 @@ if (!app.Environment.IsDevelopment())
 app.UseCors("AngularFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapControllers();
+app.MapHealthChecks("/health").AllowAnonymous();
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false
+}).AllowAnonymous();
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready", StringComparer.OrdinalIgnoreCase)
+}).AllowAnonymous();
 app.MapGet("/", () => Results.Redirect("/swagger")).AllowAnonymous();
 
 app.Run();
+
+static void ValidateJwtSettingsForAuthentication(JwtSettings settings, bool isDevelopment)
+{
+    var signingKey = settings.SigningKey?.Trim();
+    if (string.IsNullOrWhiteSpace(settings.Issuer)
+        || string.IsNullOrWhiteSpace(settings.Audience)
+        || string.IsNullOrWhiteSpace(signingKey)
+        || signingKey.Length < 32)
+    {
+        throw new InvalidOperationException("Jwt no esta configurado correctamente. Configure Jwt:Issuer, Jwt:Audience y Jwt:SigningKey de al menos 32 caracteres.");
+    }
+
+    if (!isDevelopment && signingKey.StartsWith("__", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("Jwt:SigningKey no puede usar placeholders en ambientes productivos.");
+    }
+}
+
+static string? GetCorrelationId(HttpContext context)
+{
+    return context.Items.TryGetValue(CorrelationIdMiddleware.ItemName, out var value)
+        ? value as string
+        : null;
+}
 
 static void ApplyLocalSettingsFile(IConfiguration configuration, params string[] basePaths)
 {
@@ -156,8 +256,9 @@ static List<string> GetLocalSettingsCandidatePaths(params string[] basePaths)
         candidatePaths.Add(Path.Combine(basePath, "Fotografia.Api", "appsettings.Local.json"));
     }
 
-    return candidatePaths
+    return [.. candidatePaths
         .Select(Path.GetFullPath)
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .ToList();
+        .Distinct(StringComparer.OrdinalIgnoreCase)];
 }
+
+public partial class Program;

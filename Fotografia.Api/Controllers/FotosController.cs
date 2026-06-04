@@ -6,6 +6,7 @@ using Fotografia.Application.Security;
 using Fotografia.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Fotografia.Api.Controllers;
 
@@ -57,6 +58,22 @@ public sealed class FotosController(
             : this.ToActionResult(result);
     }
 
+    [HttpPost("metadata/bulk")]
+    [Authorize(Roles = SistemaRoles.Admin)]
+    public async Task<IActionResult> CreateMetadataBulk(CrearFotoMetadataBulkRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await fotoService.CreateMetadataBulkAsync(request, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpPost("storage-keys/bulk")]
+    [Authorize(Roles = SistemaRoles.Admin)]
+    public async Task<IActionResult> GenerateStorageKeysBulk(GenerarStorageKeysBulkRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await fotoService.GenerateStorageKeysBulkAsync(request, cancellationToken);
+        return this.ToActionResult(result);
+    }
+
     [HttpPut("{id:guid}")]
     [Authorize(Roles = SistemaRoles.Admin)]
     public async Task<IActionResult> Update(Guid id, ActualizarFotoRequestDto request, CancellationToken cancellationToken)
@@ -83,6 +100,7 @@ public sealed class FotosController(
 
     [HttpPost("{fotoId:guid}/comentarios")]
     [Authorize(Roles = SistemaRoles.AdminUsuario)]
+    [EnableRateLimiting("SensitivePublic")]
     public async Task<IActionResult> CreateComentario(Guid fotoId, ComentarioRequestDto request, CancellationToken cancellationToken)
     {
         var result = await comentarioFotoService.CreateAsync(fotoId, request, cancellationToken);
