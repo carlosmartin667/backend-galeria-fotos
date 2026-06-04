@@ -408,6 +408,7 @@ public sealed class SesionPrivadaService(
         foreach (var foto in fotos)
         {
             foto.StorageKey = string.Empty;
+            foto.MarcaAguaStorageKey = null;
         }
     }
 

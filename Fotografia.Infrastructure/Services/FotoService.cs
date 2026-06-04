@@ -265,7 +265,7 @@ public sealed class FotoService(
         catch (HttpRequestException ex)
         {
             logger.LogWarning(ex, "Pexels photo import failed for event {EventoId}.", request.EventoId);
-            return ApiResponse<ImportarFotosPexelsResponseDto>.Fail("No se pudieron obtener fotos desde Pexels.");
+            return ApiResponse<ImportarFotosPexelsResponseDto>.ExternalDependency("No se pudieron obtener fotos desde Pexels.");
         }
 
         if (pexelsPhotos.Count == 0)
@@ -576,6 +576,7 @@ public sealed class FotoService(
         foreach (var foto in fotos)
         {
             foto.StorageKey = string.Empty;
+            foto.MarcaAguaStorageKey = null;
         }
     }
 
@@ -584,6 +585,7 @@ public sealed class FotoService(
         if (!currentUser.IsAdmin)
         {
             foto.StorageKey = string.Empty;
+            foto.MarcaAguaStorageKey = null;
         }
     }
 }

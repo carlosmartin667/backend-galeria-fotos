@@ -3,6 +3,7 @@ using Fotografia.Application.DTOs.Common;
 using Fotografia.Application.DTOs.Favoritos;
 using Fotografia.Application.Helpers;
 using Fotografia.Application.Services.Interfaces;
+using Fotografia.Domain.Constants;
 using Fotografia.Domain.Entities;
 using Fotografia.Infrastructure.Data;
 using Fotografia.Infrastructure.Extensions;
@@ -13,7 +14,8 @@ namespace Fotografia.Infrastructure.Services;
 public sealed class FavoritoService(
     AppDbContext dbContext,
     IMapper mapper,
-    ICurrentUserService currentUser) : IFavoritoService
+    ICurrentUserService currentUser,
+    IResourceAccessService resourceAccessService) : IFavoritoService
 {
     public async Task<ApiResponse<IReadOnlyCollection<FavoritoEventoResponseDto>>> GetEventosAsync(
         CancellationToken cancellationToken = default)
@@ -23,10 +25,10 @@ public sealed class FavoritoService(
             return ApiResponse<IReadOnlyCollection<FavoritoEventoResponseDto>>.Forbidden("Debe iniciar sesion.");
         }
 
-        var favoritos = await dbContext.EventosFavoritos
+        var favoritos = await ApplyEventoFavoriteAccess(dbContext.EventosFavoritos
             .AsNoTracking()
             .Include(x => x.Evento)
-            .Where(x => x.UsuarioId == currentUser.UserId.Value)
+            .Where(x => x.UsuarioId == currentUser.UserId.Value))
             .OrderByDescending(x => x.FechaCreacionUtc)
             .ToListAsync(cancellationToken);
 
@@ -49,10 +51,10 @@ public sealed class FavoritoService(
             return ApiResponse<PaginatedResponseDto<FavoritoEventoResponseDto>>.Fail(validationError);
         }
 
-        var query = dbContext.EventosFavoritos
+        var query = ApplyEventoFavoriteAccess(dbContext.EventosFavoritos
             .AsNoTracking()
             .Include(x => x.Evento)
-            .Where(x => x.UsuarioId == currentUser.UserId.Value)
+            .Where(x => x.UsuarioId == currentUser.UserId.Value))
             .OrderByDescending(x => x.FechaCreacionUtc);
 
         var paginated = await query.ToPaginatedResponseAsync(pagination, cancellationToken);
@@ -79,8 +81,7 @@ public sealed class FavoritoService(
             return ApiResponse<FavoritoEventoResponseDto>.Forbidden("Debe iniciar sesion.");
         }
 
-        var eventoExists = await dbContext.Eventos.AnyAsync(x => x.Id == eventoId, cancellationToken);
-        if (!eventoExists)
+        if (!await resourceAccessService.CanAccessEventoAsync(eventoId, cancellationToken))
         {
             return ApiResponse<FavoritoEventoResponseDto>.NotFound("Evento no encontrado.");
         }
@@ -139,10 +140,10 @@ public sealed class FavoritoService(
             return ApiResponse<IReadOnlyCollection<FavoritoFotoResponseDto>>.Forbidden("Debe iniciar sesion.");
         }
 
-        var favoritos = await dbContext.FotosFavoritas
+        var favoritos = await ApplyFotoFavoriteAccess(dbContext.FotosFavoritas
             .AsNoTracking()
             .Include(x => x.Foto)
-            .Where(x => x.UsuarioId == currentUser.UserId.Value && x.Foto != null && x.Foto.Activa)
+            .Where(x => x.UsuarioId == currentUser.UserId.Value))
             .OrderByDescending(x => x.FechaCreacionUtc)
             .ToListAsync(cancellationToken);
 
@@ -165,10 +166,10 @@ public sealed class FavoritoService(
             return ApiResponse<PaginatedResponseDto<FavoritoFotoResponseDto>>.Fail(validationError);
         }
 
-        var query = dbContext.FotosFavoritas
+        var query = ApplyFotoFavoriteAccess(dbContext.FotosFavoritas
             .AsNoTracking()
             .Include(x => x.Foto)
-            .Where(x => x.UsuarioId == currentUser.UserId.Value && x.Foto != null && x.Foto.Activa)
+            .Where(x => x.UsuarioId == currentUser.UserId.Value))
             .OrderByDescending(x => x.FechaCreacionUtc);
 
         var paginated = await query.ToPaginatedResponseAsync(pagination, cancellationToken);
@@ -195,8 +196,7 @@ public sealed class FavoritoService(
             return ApiResponse<FavoritoFotoResponseDto>.Forbidden("Debe iniciar sesion.");
         }
 
-        var fotoExists = await dbContext.Fotos.AnyAsync(x => x.Id == fotoId && x.Activa, cancellationToken);
-        if (!fotoExists)
+        if (!await resourceAccessService.CanAccessFotoAsync(fotoId, cancellationToken))
         {
             return ApiResponse<FavoritoFotoResponseDto>.NotFound("Foto no encontrada.");
         }
@@ -245,5 +245,49 @@ public sealed class FavoritoService(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return ApiResponse<bool>.Ok(true, "Foto favorita eliminada.");
+    }
+
+    private IQueryable<EventoFavorito> ApplyEventoFavoriteAccess(IQueryable<EventoFavorito> query)
+    {
+        if (currentUser.IsAdmin)
+        {
+            return query;
+        }
+
+        if (currentUser.UserId is not Guid userId)
+        {
+            return query.Where(x => false);
+        }
+
+        return query.Where(x =>
+            x.Evento != null
+            && x.Evento.Activo
+            && ((x.Evento.Visibilidad == EventoVisibilidades.Publico
+                    && (x.Evento.Estado == EventoEstados.Publicado || x.Evento.Estado == EventoEstados.LegacyActivo))
+                || x.Evento.CreadoPorUsuarioId == userId
+                || (x.Evento.ClientePrincipal != null && x.Evento.ClientePrincipal.UsuarioId == userId)));
+    }
+
+    private IQueryable<FotoFavorita> ApplyFotoFavoriteAccess(IQueryable<FotoFavorita> query)
+    {
+        if (currentUser.IsAdmin)
+        {
+            return query.Where(x => x.Foto != null && x.Foto.Activa);
+        }
+
+        if (currentUser.UserId is not Guid userId)
+        {
+            return query.Where(x => false);
+        }
+
+        return query.Where(x =>
+            x.Foto != null
+            && x.Foto.Activa
+            && x.Foto.Evento != null
+            && x.Foto.Evento.Activo
+            && ((x.Foto.Evento.Visibilidad == EventoVisibilidades.Publico
+                    && (x.Foto.Evento.Estado == EventoEstados.Publicado || x.Foto.Evento.Estado == EventoEstados.LegacyActivo))
+                || x.Foto.Evento.CreadoPorUsuarioId == userId
+                || (x.Foto.Evento.ClientePrincipal != null && x.Foto.Evento.ClientePrincipal.UsuarioId == userId)));
     }
 }

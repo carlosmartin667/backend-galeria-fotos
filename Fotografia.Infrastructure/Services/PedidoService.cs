@@ -330,6 +330,7 @@ public sealed class PedidoService(
             if (item.Foto is not null)
             {
                 item.Foto.StorageKey = string.Empty;
+                item.Foto.MarcaAguaStorageKey = null;
             }
         }
     }

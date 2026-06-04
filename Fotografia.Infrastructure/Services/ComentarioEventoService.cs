@@ -15,6 +15,7 @@ public sealed class ComentarioEventoService(
     AppDbContext dbContext,
     IMapper mapper,
     ICurrentUserService currentUser,
+    IResourceAccessService resourceAccessService,
     INotificacionService notificacionService,
     ILogger<ComentarioEventoService> logger) : IComentarioEventoService
 {
@@ -22,8 +23,7 @@ public sealed class ComentarioEventoService(
         Guid eventoId,
         CancellationToken cancellationToken = default)
     {
-        var exists = await dbContext.Eventos.AnyAsync(x => x.Id == eventoId, cancellationToken);
-        if (!exists)
+        if (!await resourceAccessService.CanAccessEventoAsync(eventoId, cancellationToken))
         {
             return ApiResponse<IReadOnlyCollection<ComentarioResponseDto>>.NotFound("Evento no encontrado.");
         }
@@ -52,8 +52,7 @@ public sealed class ComentarioEventoService(
             return ApiResponse<ComentarioResponseDto>.Fail("El texto del comentario es requerido.");
         }
 
-        var exists = await dbContext.Eventos.AnyAsync(x => x.Id == eventoId, cancellationToken);
-        if (!exists)
+        if (!await resourceAccessService.CanAccessEventoAsync(eventoId, cancellationToken))
         {
             return ApiResponse<ComentarioResponseDto>.NotFound("Evento no encontrado.");
         }
@@ -102,6 +101,11 @@ public sealed class ComentarioEventoService(
             return ApiResponse<ComentarioResponseDto>.Forbidden("No puede editar un comentario de otro usuario.");
         }
 
+        if (!await resourceAccessService.CanAccessEventoAsync(comentario.EventoId, cancellationToken))
+        {
+            return ApiResponse<ComentarioResponseDto>.NotFound("Evento no encontrado.");
+        }
+
         comentario.Texto = request.Texto.Trim();
         comentario.FechaActualizacionUtc = DateTime.UtcNow;
 
@@ -123,6 +127,11 @@ public sealed class ComentarioEventoService(
         if (!CanModify(comentario.UsuarioId))
         {
             return ApiResponse<bool>.Forbidden("No puede eliminar un comentario de otro usuario.");
+        }
+
+        if (!await resourceAccessService.CanAccessEventoAsync(comentario.EventoId, cancellationToken))
+        {
+            return ApiResponse<bool>.NotFound("Evento no encontrado.");
         }
 
         comentario.Activo = false;

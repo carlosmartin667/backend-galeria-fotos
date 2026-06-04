@@ -4,6 +4,7 @@ using Fotografia.Application.Security;
 using Fotografia.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Fotografia.Api.Controllers;
 
@@ -13,6 +14,7 @@ public sealed class PresupuestosController(ISolicitudPresupuestoService solicitu
 {
     [HttpPost("solicitudes")]
     [AllowAnonymous]
+    [EnableRateLimiting("SensitivePublic")]
     public async Task<IActionResult> CreateSolicitud(
         CrearSolicitudPresupuestoRequestDto request,
         CancellationToken cancellationToken)

@@ -1,13 +1,18 @@
 using System.Text;
 using Fotografia.Api.Helpers;
 using Fotografia.Application;
+using Fotografia.Application.Helpers;
 using Fotografia.Application.Services.Interfaces;
 using Fotografia.Infrastructure;
+using Fotografia.Infrastructure.Health;
 using Fotografia.Infrastructure.Settings;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 ApplyLocalSettingsFile(builder.Configuration, builder.Environment.ContentRootPath, Directory.GetCurrentDirectory());
@@ -38,6 +43,8 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddProblemDetails();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddHealthChecks()
+    .AddCheck<AppDbContextHealthCheck>("database");
 
 var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
     ?? throw new InvalidOperationException("La seccion Jwt no esta configurada.");
@@ -60,6 +67,29 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    var permitLimit = Math.Max(1, builder.Configuration.GetValue<int?>("RateLimiting:SensitivePublic:PermitLimit") ?? 60);
+    var windowSeconds = Math.Max(1, builder.Configuration.GetValue<int?>("RateLimiting:SensitivePublic:WindowSeconds") ?? 60);
+    var queueLimit = Math.Max(0, builder.Configuration.GetValue<int?>("RateLimiting:SensitivePublic:QueueLimit") ?? 0);
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("SensitivePublic", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = permitLimit;
+        limiterOptions.Window = TimeSpan.FromSeconds(windowSeconds);
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = queueLimit;
+        limiterOptions.AutoReplenishment = true;
+    });
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            ApiResponse<object>.Fail("Demasiadas solicitudes. Intente nuevamente en unos minutos.", StatusCodes.Status429TooManyRequests),
+            cancellationToken);
+    };
+});
 
 builder.Services.AddCors(options =>
 {
@@ -79,16 +109,40 @@ var app = builder.Build();
 var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
 startupLogger.LogInformation(
     "Pexels API Key configurada: {Configurada}",
-    string.IsNullOrWhiteSpace(app.Configuration["Pexels:ApiKey"]) ? "no" : "sí");
+    string.IsNullOrWhiteSpace(app.Configuration["Pexels:ApiKey"]) ? "no" : "si");
 
 if (app.Environment.IsDevelopment())
 {
+    app.UseDeveloperExceptionPage();
     app.UseSwagger();
     app.UseSwaggerUI(options =>
     {
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "Fotografia Backend API v1");
         options.RoutePrefix = "swagger";
         options.DocumentTitle = "Fotografia Backend API";
+    });
+}
+else
+{
+    app.UseExceptionHandler(exceptionApp =>
+    {
+        exceptionApp.Run(async context =>
+        {
+            var exceptionFeature = context.Features.Get<IExceptionHandlerFeature>();
+            var logger = context.RequestServices
+                .GetRequiredService<ILoggerFactory>()
+                .CreateLogger("GlobalExceptionHandler");
+
+            logger.LogError(
+                exceptionFeature?.Error,
+                "Unhandled exception. TraceIdentifier={TraceIdentifier}",
+                context.TraceIdentifier);
+
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            await context.Response.WriteAsJsonAsync(
+                ApiResponse<object>.InternalError("Ocurrio un error inesperado."),
+                context.RequestAborted);
+        });
     });
 }
 
@@ -106,8 +160,10 @@ if (!app.Environment.IsDevelopment())
 app.UseCors("AngularFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapControllers();
+app.MapHealthChecks("/health").AllowAnonymous();
 app.MapGet("/", () => Results.Redirect("/swagger")).AllowAnonymous();
 
 app.Run();
@@ -156,8 +212,7 @@ static List<string> GetLocalSettingsCandidatePaths(params string[] basePaths)
         candidatePaths.Add(Path.Combine(basePath, "Fotografia.Api", "appsettings.Local.json"));
     }
 
-    return candidatePaths
+    return [.. candidatePaths
         .Select(Path.GetFullPath)
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .ToList();
+        .Distinct(StringComparer.OrdinalIgnoreCase)];
 }

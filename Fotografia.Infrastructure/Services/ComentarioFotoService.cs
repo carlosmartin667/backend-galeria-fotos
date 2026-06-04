@@ -15,6 +15,7 @@ public sealed class ComentarioFotoService(
     AppDbContext dbContext,
     IMapper mapper,
     ICurrentUserService currentUser,
+    IResourceAccessService resourceAccessService,
     INotificacionService notificacionService,
     ILogger<ComentarioFotoService> logger) : IComentarioFotoService
 {
@@ -22,8 +23,7 @@ public sealed class ComentarioFotoService(
         Guid fotoId,
         CancellationToken cancellationToken = default)
     {
-        var exists = await dbContext.Fotos.AnyAsync(x => x.Id == fotoId && x.Activa, cancellationToken);
-        if (!exists)
+        if (!await resourceAccessService.CanAccessFotoAsync(fotoId, cancellationToken))
         {
             return ApiResponse<IReadOnlyCollection<ComentarioResponseDto>>.NotFound("Foto no encontrada.");
         }
@@ -52,8 +52,7 @@ public sealed class ComentarioFotoService(
             return ApiResponse<ComentarioResponseDto>.Fail("El texto del comentario es requerido.");
         }
 
-        var exists = await dbContext.Fotos.AnyAsync(x => x.Id == fotoId && x.Activa, cancellationToken);
-        if (!exists)
+        if (!await resourceAccessService.CanAccessFotoAsync(fotoId, cancellationToken))
         {
             return ApiResponse<ComentarioResponseDto>.NotFound("Foto no encontrada.");
         }
@@ -102,6 +101,11 @@ public sealed class ComentarioFotoService(
             return ApiResponse<ComentarioResponseDto>.Forbidden("No puede editar un comentario de otro usuario.");
         }
 
+        if (!await resourceAccessService.CanAccessFotoAsync(comentario.FotoId, cancellationToken))
+        {
+            return ApiResponse<ComentarioResponseDto>.NotFound("Foto no encontrada.");
+        }
+
         comentario.Texto = request.Texto.Trim();
         comentario.FechaActualizacionUtc = DateTime.UtcNow;
 
@@ -123,6 +127,11 @@ public sealed class ComentarioFotoService(
         if (!CanModify(comentario.UsuarioId))
         {
             return ApiResponse<bool>.Forbidden("No puede eliminar un comentario de otro usuario.");
+        }
+
+        if (!await resourceAccessService.CanAccessFotoAsync(comentario.FotoId, cancellationToken))
+        {
+            return ApiResponse<bool>.NotFound("Foto no encontrada.");
         }
 
         comentario.Activo = false;

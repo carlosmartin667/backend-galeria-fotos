@@ -27,7 +27,11 @@ public static class DependencyInjection
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlServer(
                 connectionString,
-                sqlOptions => sqlOptions.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
+                sqlOptions =>
+                {
+                    sqlOptions.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName);
+                    sqlOptions.EnableRetryOnFailure();
+                }));
 
         services.AddHttpClient();
         services.AddHttpClient<IPexelsService, PexelsService>(client =>
@@ -39,6 +43,7 @@ public static class DependencyInjection
 
         services.AddScoped<IDatabaseInitializer, DatabaseInitializer>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<IResourceAccessService, ResourceAccessService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IEventoService, EventoService>();
         services.AddScoped<IFotoService, FotoService>();

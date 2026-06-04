@@ -98,9 +98,13 @@ public sealed class MercadoPagoService(
         using var response = await httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            logger.LogWarning("Mercado Pago rejected preference request with status {StatusCode}: {Body}", response.StatusCode, body);
-            return ApiResponse<MercadoPagoPreferenceResponseDto>.Fail("No se pudo crear la preferencia de pago.");
+            logger.LogWarning(
+                "Proveedor externo rechazo la operacion. Provider={Provider} Operation={Operation} StatusCode={StatusCode} PedidoId={PedidoId}",
+                "MercadoPago",
+                "CreateCheckoutPreference",
+                response.StatusCode,
+                pedido.Id);
+            return ApiResponse<MercadoPagoPreferenceResponseDto>.ExternalDependency("No se pudo crear la preferencia de pago.");
         }
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -149,9 +153,13 @@ public sealed class MercadoPagoService(
         using var paymentResponse = await httpClient.SendAsync(paymentRequest, cancellationToken);
         if (!paymentResponse.IsSuccessStatusCode)
         {
-            var body = await paymentResponse.Content.ReadAsStringAsync(cancellationToken);
-            logger.LogWarning("Mercado Pago rejected payment lookup with status {StatusCode}: {Body}", paymentResponse.StatusCode, body);
-            return ApiResponse<PagoResponseDto>.Fail("No se pudo consultar el pago en Mercado Pago.");
+            logger.LogWarning(
+                "Proveedor externo rechazo la operacion. Provider={Provider} Operation={Operation} StatusCode={StatusCode} PaymentId={PaymentId}",
+                "MercadoPago",
+                "PaymentLookup",
+                paymentResponse.StatusCode,
+                paymentId);
+            return ApiResponse<PagoResponseDto>.ExternalDependency("No se pudo consultar el pago en Mercado Pago.");
         }
 
         await using var stream = await paymentResponse.Content.ReadAsStreamAsync(cancellationToken);

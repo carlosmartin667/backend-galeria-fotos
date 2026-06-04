@@ -23,12 +23,12 @@ public sealed class PexelsService(
         CancellationToken cancellationToken = default)
     {
         var isApiKeyConfigured = IsApiKeyConfigured(_settings.ApiKey);
-        logger.LogInformation("Pexels API Key configurada: {Configurada}", isApiKeyConfigured ? "sí" : "no");
+        logger.LogInformation("Pexels API Key configurada: {Configurada}", isApiKeyConfigured ? "si" : "no");
 
         if (!isApiKeyConfigured)
         {
             throw new InvalidOperationException(
-                "Pexels API Key no configurada. Configurá Pexels:ApiKey con appsettings.Local.json, user-secrets o variable de entorno.");
+                "Pexels API Key no configurada. Configura Pexels:ApiKey con appsettings.Local.json, user-secrets o variable de entorno.");
         }
 
         var baseUrl = string.IsNullOrWhiteSpace(_settings.BaseUrl)

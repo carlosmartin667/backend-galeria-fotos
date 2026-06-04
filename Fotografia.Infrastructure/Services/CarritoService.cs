@@ -17,6 +17,7 @@ public sealed class CarritoService(
     AppDbContext dbContext,
     IMapper mapper,
     ICurrentUserService currentUser,
+    IResourceAccessService resourceAccessService,
     INotificacionService notificacionService,
     ICuponService cuponService,
     ICarritoAbandonadoService carritoAbandonadoService,
@@ -45,7 +46,7 @@ public sealed class CarritoService(
         var foto = await dbContext.Fotos
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == fotoId && x.Activa, cancellationToken);
-        if (foto is null)
+        if (foto is null || !await resourceAccessService.CanAccessFotoAsync(fotoId, cancellationToken))
         {
             return ApiResponse<CarritoResponseDto>.NotFound("Foto no encontrada o inactiva.");
         }
@@ -81,7 +82,7 @@ public sealed class CarritoService(
         var paquete = await dbContext.PaquetesEvento
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == paqueteId && x.Activo, cancellationToken);
-        if (paquete is null)
+        if (paquete is null || !await resourceAccessService.CanAccessPaqueteEventoAsync(paqueteId, cancellationToken))
         {
             return ApiResponse<CarritoResponseDto>.NotFound("Paquete no encontrado o inactivo.");
         }
@@ -312,6 +313,11 @@ public sealed class CarritoService(
                         return ApiResponse<PedidoResponseDto>.Fail("Una foto del carrito ya no esta disponible.");
                     }
 
+                    if (!await resourceAccessService.CanAccessFotoAsync(foto.Id, cancellationToken))
+                    {
+                        return ApiResponse<PedidoResponseDto>.Forbidden("Una foto del carrito no esta disponible para este usuario.");
+                    }
+
                     eventIds.Add(foto.EventoId);
                     pedidoItems.Add(CreatePedidoItem(
                         PedidoItemTipos.FotoEvento,
@@ -333,6 +339,11 @@ public sealed class CarritoService(
                     if (paquete is null)
                     {
                         return ApiResponse<PedidoResponseDto>.Fail("Un paquete del carrito ya no esta disponible.");
+                    }
+
+                    if (!await resourceAccessService.CanAccessPaqueteEventoAsync(paquete.Id, cancellationToken))
+                    {
+                        return ApiResponse<PedidoResponseDto>.Forbidden("Un paquete del carrito no esta disponible para este usuario.");
                     }
 
                     eventIds.Add(paquete.EventoId);

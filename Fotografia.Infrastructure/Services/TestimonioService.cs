@@ -13,6 +13,7 @@ namespace Fotografia.Infrastructure.Services;
 public sealed class TestimonioService(
     AppDbContext dbContext,
     ICurrentUserService currentUser,
+    IResourceAccessService resourceAccessService,
     INotificacionService notificacionService,
     ILogger<TestimonioService> logger) : ITestimonioService
 {
@@ -42,10 +43,10 @@ public sealed class TestimonioService(
 
     public async Task<ApiResponse<TestimonioAdminResponseDto>> CreateAsync(CrearTestimonioRequestDto request, CancellationToken cancellationToken = default)
     {
-        var validation = await ValidateCreateAsync(request, cancellationToken);
-        if (validation is not null)
+        var relations = await ResolveCreateRelationsAsync(request, cancellationToken);
+        if (!relations.Success)
         {
-            return ApiResponse<TestimonioAdminResponseDto>.Fail(validation);
+            return ApiResponse<TestimonioAdminResponseDto>.Fail(relations.Message ?? "Testimonio invalido.");
         }
 
         var testimonio = new Testimonio
@@ -55,10 +56,10 @@ public sealed class TestimonioService(
             Texto = request.Texto.Trim(),
             Calificacion = request.Calificacion,
             ImagenUrl = Normalize(request.ImagenUrl),
-            ClienteId = request.ClienteId,
-            PedidoId = request.PedidoId,
-            ServicioFotografiaId = request.ServicioFotografiaId,
-            EventoId = request.EventoId,
+            ClienteId = relations.ClienteId,
+            PedidoId = relations.PedidoId,
+            ServicioFotografiaId = relations.ServicioFotografiaId,
+            EventoId = relations.EventoId,
             Publicado = false,
             Destacado = false,
             Activo = true,
@@ -190,34 +191,95 @@ public sealed class TestimonioService(
         return ApiResponse<TestimonioAdminResponseDto>.Ok(MapAdmin(testimonio), message);
     }
 
-    private async Task<string?> ValidateCreateAsync(CrearTestimonioRequestDto request, CancellationToken cancellationToken)
+    private async Task<CreateRelationsResult> ResolveCreateRelationsAsync(
+        CrearTestimonioRequestDto request,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.NombreCliente))
         {
-            return "NombreCliente es requerido.";
+            return CreateRelationsResult.Fail("NombreCliente es requerido.");
         }
 
         if (string.IsNullOrWhiteSpace(request.Texto))
         {
-            return "Texto es requerido.";
+            return CreateRelationsResult.Fail("Texto es requerido.");
         }
 
         if (request.Calificacion is < 1 or > 5)
         {
-            return "Calificacion debe estar entre 1 y 5.";
+            return CreateRelationsResult.Fail("Calificacion debe estar entre 1 y 5.");
         }
 
-        if (!currentUser.IsAdmin && currentUser.IsAuthenticated && request.ClienteId is Guid clienteId)
+        if (currentUser.IsAdmin)
+        {
+            var validation = await ValidateRelationsAsync(
+                request.ClienteId,
+                request.PedidoId,
+                request.ServicioFotografiaId,
+                request.EventoId,
+                cancellationToken);
+
+            return validation is null
+                ? CreateRelationsResult.Ok(request.ClienteId, request.PedidoId, request.ServicioFotografiaId, request.EventoId)
+                : CreateRelationsResult.Fail(validation);
+        }
+
+        if (!currentUser.IsAuthenticated || currentUser.UserId is not Guid userId)
+        {
+            return CreateRelationsResult.Ok(null, null, null, null);
+        }
+
+        Guid? clienteId = null;
+        if (request.ClienteId is Guid requestedClienteId)
         {
             var ownsCliente = await dbContext.Clientes
-                .AnyAsync(x => x.Id == clienteId && x.UsuarioId == currentUser.UserId, cancellationToken);
+                .AnyAsync(x => x.Id == requestedClienteId && x.UsuarioId == userId, cancellationToken);
             if (!ownsCliente)
             {
-                return "No puede crear testimonios para otro cliente.";
+                return CreateRelationsResult.Fail("No puede crear testimonios para otro cliente.");
             }
+
+            clienteId = requestedClienteId;
         }
 
-        return await ValidateRelationsAsync(request.ClienteId, request.PedidoId, request.ServicioFotografiaId, request.EventoId, cancellationToken);
+        Guid? pedidoId = null;
+        if (request.PedidoId is Guid requestedPedidoId)
+        {
+            var ownsPedido = await dbContext.Pedidos
+                .AnyAsync(x => x.Id == requestedPedidoId && x.Cliente != null && x.Cliente.UsuarioId == userId, cancellationToken);
+            if (!ownsPedido)
+            {
+                return CreateRelationsResult.Fail("No puede asociar pedidos de otro cliente.");
+            }
+
+            pedidoId = requestedPedidoId;
+        }
+
+        Guid? servicioId = null;
+        if (request.ServicioFotografiaId is Guid requestedServicioId)
+        {
+            var serviceExists = await dbContext.ServiciosFotografia
+                .AnyAsync(x => x.Id == requestedServicioId && x.Activo, cancellationToken);
+            if (!serviceExists)
+            {
+                return CreateRelationsResult.Fail("Servicio asociado no encontrado.");
+            }
+
+            servicioId = requestedServicioId;
+        }
+
+        Guid? eventoId = null;
+        if (request.EventoId is Guid requestedEventoId)
+        {
+            if (!await resourceAccessService.CanAccessEventoAsync(requestedEventoId, cancellationToken))
+            {
+                return CreateRelationsResult.Fail("Evento asociado no encontrado.");
+            }
+
+            eventoId = requestedEventoId;
+        }
+
+        return CreateRelationsResult.Ok(clienteId, pedidoId, servicioId, eventoId);
     }
 
     private async Task<string?> ValidateRelationsAsync(
@@ -320,5 +382,28 @@ public sealed class TestimonioService(
     private static string? Normalize(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private sealed record CreateRelationsResult(
+        bool Success,
+        string? Message,
+        Guid? ClienteId,
+        Guid? PedidoId,
+        Guid? ServicioFotografiaId,
+        Guid? EventoId)
+    {
+        public static CreateRelationsResult Ok(
+            Guid? clienteId,
+            Guid? pedidoId,
+            Guid? servicioFotografiaId,
+            Guid? eventoId)
+        {
+            return new CreateRelationsResult(true, null, clienteId, pedidoId, servicioFotografiaId, eventoId);
+        }
+
+        public static CreateRelationsResult Fail(string message)
+        {
+            return new CreateRelationsResult(false, message, null, null, null, null);
+        }
     }
 }

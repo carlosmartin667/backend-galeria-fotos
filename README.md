@@ -21,7 +21,7 @@ La API levanta en `http://localhost:5200` y Swagger queda disponible en `http://
 
 ## Datos de prueba
 
-En `Development`, la API aplica migraciones y carga datos de prueba cuando `Database:SeedTestData` esta en `true`.
+En `Development`, la API aplica migraciones y carga datos de prueba cuando `Database:SeedOnStartup` esta en `true`.
 
 Usuario administrador de prueba:
 
@@ -122,3 +122,27 @@ dotnet user-secrets set "Notifications:WorkerEnabled" "true" --project .\Fotogra
 ```
 
 No guardes claves reales en `appsettings.json`, `appsettings.Development.json` ni `appsettings.Local.json` si ese archivo se va a compartir.
+
+## Salud y limites de solicitudes
+
+La API expone un health check simple en:
+
+```http
+GET /health
+```
+
+Incluye una verificacion de conexion a la base de datos y no expone secretos.
+
+Los endpoints publicos sensibles usan rate limiting configurable:
+
+```json
+"RateLimiting": {
+  "SensitivePublic": {
+    "PermitLimit": 60,
+    "WindowSeconds": 60,
+    "QueueLimit": 0
+  }
+}
+```
+
+En desarrollo el limite puede ajustarse con `appsettings.Local.json`, user-secrets o variables de entorno, por ejemplo `RateLimiting__SensitivePublic__PermitLimit`.

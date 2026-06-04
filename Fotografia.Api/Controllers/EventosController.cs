@@ -7,6 +7,7 @@ using Fotografia.Application.Security;
 using Fotografia.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Fotografia.Api.Controllers;
 
@@ -117,6 +118,7 @@ public sealed class EventosController(
 
     [HttpPost("{eventoId:guid}/comentarios")]
     [Authorize(Roles = SistemaRoles.AdminUsuario)]
+    [EnableRateLimiting("SensitivePublic")]
     public async Task<IActionResult> CreateComentario(Guid eventoId, ComentarioRequestDto request, CancellationToken cancellationToken)
     {
         var result = await comentarioEventoService.CreateAsync(eventoId, request, cancellationToken);

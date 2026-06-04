@@ -4,6 +4,7 @@ using Fotografia.Application.Security;
 using Fotografia.Application.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Fotografia.Api.Controllers;
 
@@ -29,6 +30,7 @@ public sealed class TestimoniosController(ITestimonioService testimonioService) 
 
     [HttpPost]
     [AllowAnonymous]
+    [EnableRateLimiting("SensitivePublic")]
     public async Task<IActionResult> Create(CrearTestimonioRequestDto request, CancellationToken cancellationToken)
     {
         var result = await testimonioService.CreateAsync(request, cancellationToken);
