@@ -1,77 +1,140 @@
 # fotografia-backend-api
 
-Backend ASP.NET Core Web API para gestion de eventos fotograficos, clientes, fotos, pedidos, pagos y descargas.
+Backend ASP.NET Core Web API para una plataforma profesional de galeria fotografica. El sistema permite publicar eventos, vender fotos digitales, gestionar sesiones privadas, operar pedidos, pagos, descargas, promociones, agenda, presupuestos, notificaciones y auditoria administrativa.
 
-## Estructura
+Este repositorio contiene solo el backend. El frontend Angular vive en otro repositorio y consume esta API mediante endpoints REST.
 
-- `Fotografia.Api`: controllers, Swagger, autenticacion HTTP, CORS y configuracion del host.
-- `Fotografia.Application`: DTOs, respuestas comunes, interfaces de servicios y AutoMapper.
-- `Fotografia.Domain`: entidades principales del negocio.
-- `Fotografia.Infrastructure`: EF Core, SQL Server/Azure SQL, Mercado Pago, Resend, Cloudflare R2 y JWT.
+## Objetivo Del Sistema
 
-Documentacion tecnica:
+La API esta pensada para una fotografa profesional que necesita:
+
+- publicar eventos y galerias publicas;
+- administrar clientes, sesiones privadas y fotos privadas;
+- vender fotos individuales, paquetes y productos digitales;
+- gestionar carrito, cupones, pedidos y pagos;
+- generar descargas protegidas con links temporales;
+- mantener una web publica comercial con portfolio, servicios, FAQ, promociones y testimonios;
+- recibir solicitudes de presupuesto y organizar agenda;
+- operar notificaciones, reportes y bitacora administrativa.
+
+## Stack Tecnico
+
+- .NET 10 / ASP.NET Core 10 Web API con controllers.
+- C# con nullable/implicit usings habilitados por proyecto.
+- Entity Framework Core 10.
+- SQL Server / Azure SQL.
+- JWT Bearer authentication.
+- Roles: `Admin`, `Usuario` e Invitado anonimo.
+- Swagger / OpenAPI con Swashbuckle.
+- Mercado Pago Checkout Pro y webhooks.
+- Resend para emails.
+- Cloudflare R2 para almacenamiento real de fotos.
+- Pexels para carga demo de metadata, sin descargar imagenes.
+- xUnit, FluentAssertions, NSubstitute, WebApplicationFactory y coverlet.
+- GitHub Actions para build/test backend.
+
+## Arquitectura Resumida
+
+La solucion esta dividida por capas:
+
+- `Fotografia.Api`: host ASP.NET Core, controllers, Swagger, CORS, JWT, rate limiting, health checks y middleware.
+- `Fotografia.Application`: DTOs, respuestas comunes, interfaces de servicios, AutoMapper y seguridad compartida.
+- `Fotografia.Domain`: entidades y constantes del dominio.
+- `Fotografia.Infrastructure`: EF Core, SQL Server, servicios concretos, integraciones externas, JWT, seed y background workers.
+
+Los controllers son delgados y delegan la logica en services. Los contratos HTTP usan DTOs y `ApiResponse<T>`. EF Core queda encerrado en Infrastructure. Las reglas de ownership y visibilidad se centralizan en `ResourceAccessService` y services de dominio.
+
+Mas detalle:
 
 - [Arquitectura](ARCHITECTURE.md)
-- [Testing](TESTING.md)
 - [Seguridad](SECURITY.md)
+- [Testing](TESTING.md)
+- [Demo](DEMO.md)
+- [Guia de entrevista](INTERVIEW_GUIDE.md)
+- [Decisiones tecnicas](DECISIONS.md)
+- [Roadmap](ROADMAP.md)
 
-## Ejecucion local
+## Modulos Principales
+
+- Autenticacion y roles.
+- Admin dashboard, operaciones y ventas.
+- Eventos, fotos, portada, paquetes y comentarios.
+- Clientes, historial y notas internas.
+- Favoritos de eventos y fotos.
+- Carrito mixto, cupones y pedidos.
+- Pagos con Mercado Pago.
+- Descargas protegidas y regeneracion de links.
+- Sesiones privadas y fotos privadas.
+- Perfil fotografa, sitio publico, portfolio, servicios y FAQ.
+- Presupuestos y agenda.
+- Promociones, testimonios y carritos abandonados.
+- Notificaciones, plantillas y worker de envio.
+- Reportes de ventas.
+- Bitacora/auditoria con metadata sanitizada.
+
+## Ejecucion Local Backend
 
 Abrir `fotografia-backend-api.slnx` en Visual Studio 2026 o ejecutar:
 
 ```powershell
-dotnet run --project Fotografia.Api/Fotografia.Api.csproj
+dotnet tool restore
+dotnet restore .\fotografia-backend-api.slnx
+dotnet build .\fotografia-backend-api.slnx
+dotnet run --project .\Fotografia.Api\Fotografia.Api.csproj
 ```
 
-La API levanta en `http://localhost:5200` y Swagger queda disponible en `http://localhost:5200/swagger`.
-
-## Datos de prueba
-
-En `Development`, la API aplica migraciones y carga datos de prueba cuando `Database:SeedOnStartup` esta en `true`.
-
-Usuario administrador de prueba:
+La API levanta en:
 
 ```text
-Email: carloscornejomoscoso@gmail.com
-Password: 12345678
+http://localhost:5200
 ```
 
-El seed crea clientes, eventos, fotos como metadata de R2, pedidos, pagos y descargas de ejemplo. No guarda imagenes binarias en SQL Server.
-
-## Base de datos
-
-La connection string local configurada apunta a SQL Server:
+Swagger queda disponible en:
 
 ```text
-Data Source=.;Initial Catalog=Db_fotografia;Integrated Security=True;Trust Server Certificate=True
+http://localhost:5200/swagger
 ```
 
-Las migraciones de Entity Framework Core viven en `Fotografia.Infrastructure/Migrations`.
+## Frontend Angular
 
-Comandos utiles:
+El frontend no esta en este repositorio. Para demo local, levantarlo desde su propio repo apuntando al backend:
+
+```text
+API base URL: http://localhost:5200
+```
+
+Los comandos exactos dependen del repositorio Angular. Un flujo tipico seria `npm install` y `ng serve`, pero no se versiona ni se modifica nada de Angular aca.
+
+## Configuracion Segura
+
+No guardar secretos reales en Git, `appsettings.json` ni `appsettings.Development.json`.
+
+Usar Secret Manager:
 
 ```powershell
-dotnet tool restore
-dotnet tool run dotnet-ef migrations add NombreMigracion --project Fotografia.Infrastructure/Fotografia.Infrastructure.csproj --startup-project Fotografia.Api/Fotografia.Api.csproj --context AppDbContext --output-dir Migrations
-dotnet tool run dotnet-ef database update --project Fotografia.Infrastructure/Fotografia.Infrastructure.csproj --startup-project Fotografia.Api/Fotografia.Api.csproj --context AppDbContext
+dotnet user-secrets set "Jwt:SigningKey" "TU_CLAVE_LOCAL_DE_32_CARACTERES_O_MAS" --project .\Fotografia.Api\Fotografia.Api.csproj
+dotnet user-secrets set "Pexels:ApiKey" "TU_API_KEY" --project .\Fotografia.Api\Fotografia.Api.csproj
+dotnet user-secrets set "Resend:ApiKey" "TU_RESEND_API_KEY" --project .\Fotografia.Api\Fotografia.Api.csproj
+dotnet user-secrets set "MercadoPago:AccessToken" "TU_ACCESS_TOKEN" --project .\Fotografia.Api\Fotografia.Api.csproj
 ```
 
-## Configuracion de Pexels en desarrollo
+O variables de entorno:
 
-No guardes la API Key real en archivos versionados.
+```powershell
+$env:Jwt__SigningKey="TU_CLAVE_LOCAL_DE_32_CARACTERES_O_MAS"
+$env:Pexels__ApiKey="TU_API_KEY"
+$env:Resend__ApiKey="TU_RESEND_API_KEY"
+$env:MercadoPago__AccessToken="TU_ACCESS_TOKEN"
+```
 
-Opcion simple automatizada con archivo local ignorado por Git:
+Para desarrollo local tambien existe soporte opcional para `Fotografia.Api/appsettings.Local.json`, ignorado por Git:
 
 ```powershell
 .\scripts\local\create-appsettings-local.ps1
 .\scripts\local\run-api-dev.ps1
 ```
 
-`run-api-dev.ps1` tambien crea `Fotografia.Api/appsettings.Local.json` automaticamente si todavia no existe.
-El archivo `Fotografia.Api/appsettings.Local.json` esta ignorado por Git.
-Si la API ya estaba corriendo cuando creaste o cambiaste este archivo, detenela y volve a levantarla.
-
-La prioridad de configuracion queda:
+Prioridad esperada de configuracion:
 
 ```text
 appsettings.json
@@ -81,57 +144,53 @@ user-secrets
 variables de entorno
 ```
 
-Opcion con Secret Manager:
+## Base De Datos Y Migraciones
+
+Las migraciones de EF Core viven en `Fotografia.Infrastructure/Migrations`.
+
+Aplicar migraciones:
 
 ```powershell
-.\scripts\local\set-pexels-secret.ps1
-.\scripts\local\run-api-dev.ps1
+dotnet tool run dotnet-ef database update --project .\Fotografia.Infrastructure\Fotografia.Infrastructure.csproj --startup-project .\Fotografia.Api\Fotografia.Api.csproj --context AppDbContext
 ```
 
-Luego proba desde Swagger o Angular:
-
-```http
-POST /api/Admin/demo/pexels/importar-fotos
-```
-
-Tambien puede configurarse por variable de entorno antes de ejecutar la API:
+Crear una migracion nueva cuando haya cambios de modelo:
 
 ```powershell
-$env:Pexels__ApiKey="TU_API_KEY"
-dotnet run --project .\Fotografia.Api\Fotografia.Api.csproj
+dotnet tool run dotnet-ef migrations add NombreMigracion --project .\Fotografia.Infrastructure\Fotografia.Infrastructure.csproj --startup-project .\Fotografia.Api\Fotografia.Api.csproj --context AppDbContext --output-dir Migrations
 ```
 
-El script real `scripts/local/set-pexels-secret.ps1` esta ignorado por Git. El archivo `scripts/local/set-pexels-secret.example.ps1` queda como referencia sin secretos reales.
+En `Development`, el seed puede cargar datos demo si `Database:SeedOnStartup` esta en `true`. `Database:ResetOnStartup` debe quedar en `false` por defecto y solo puede usarse en Development.
 
-## Notificaciones y automatizaciones
+## Datos Demo
 
-Fase 4 agrega cola de notificaciones internas y por email. El envio usa el `IEmailService` existente con Resend.
+El README ya documentaba un usuario administrador de desarrollo creado por seed:
 
-Por defecto el envio automatico esta desactivado:
-
-```json
-"Notifications": {
-  "Enabled": false,
-  "WorkerEnabled": false
-}
+```text
+Email: carloscornejomoscoso@gmail.com
+Password: 12345678
 ```
 
-Para enviar emails en desarrollo, configura Resend con user-secrets o variables de entorno y luego habilita `Notifications:Enabled` y `Notifications:WorkerEnabled`.
+Usar solo en entorno local/demo. No reutilizar estas credenciales en staging ni produccion.
 
-Ejemplo con user-secrets:
+## Tests
+
+Ejecutar todo:
 
 ```powershell
-dotnet user-secrets set "Resend:ApiKey" "TU_RESEND_API_KEY" --project .\Fotografia.Api\Fotografia.Api.csproj
-dotnet user-secrets set "Resend:FromEmail" "no-reply@tu-dominio.com" --project .\Fotografia.Api\Fotografia.Api.csproj
-dotnet user-secrets set "Notifications:Enabled" "true" --project .\Fotografia.Api\Fotografia.Api.csproj
-dotnet user-secrets set "Notifications:WorkerEnabled" "true" --project .\Fotografia.Api\Fotografia.Api.csproj
+dotnet test .\fotografia-backend-api.slnx
 ```
 
-No guardes claves reales en `appsettings.json`, `appsettings.Development.json` ni `appsettings.Local.json` si ese archivo se va a compartir.
+Por proyecto:
 
-## Salud y limites de solicitudes
+```powershell
+dotnet test .\Fotografia.Tests.Unit\Fotografia.Tests.Unit.csproj
+dotnet test .\Fotografia.Tests.Integration\Fotografia.Tests.Integration.csproj
+```
 
-La API expone health checks en:
+Los tests cubren helpers, servicios, ownership, respuestas comunes, health checks, endpoints publicos/protegidos y bitacora. Ver [TESTING.md](TESTING.md).
+
+## Health Checks
 
 ```http
 GET /health
@@ -139,38 +198,57 @@ GET /health/live
 GET /health/ready
 ```
 
-`/health/live` indica que el proceso responde. `/health/ready` incluye la verificacion de base de datos. Ningun health check expone secretos.
+- `/health/live`: proceso vivo.
+- `/health/ready`: readiness con verificacion de base de datos.
+- Ningun health check expone secretos.
 
-Los endpoints publicos sensibles usan rate limiting configurable:
+## Endpoints Principales
 
-```json
-"RateLimiting": {
-  "SensitivePublic": {
-    "PermitLimit": 60,
-    "WindowSeconds": 60,
-    "QueueLimit": 0
-  }
-}
-```
+- `POST /api/Auth/login`
+- `POST /api/Auth/register`
+- `GET /api/Admin/dashboard`
+- `GET /api/Eventos`
+- `GET /api/Eventos/paginado`
+- `GET /api/Fotos/evento/{eventoId}`
+- `GET /api/Sitio/home`
+- `GET /api/Sitio/perfil-fotografa`
+- `GET /api/Portfolio`
+- `GET /api/Servicios`
+- `GET /api/Faq`
+- `GET /api/Testimonios`
+- `GET /api/Promociones`
+- `GET /api/Agenda/disponibilidad`
+- `POST /api/Carrito/crear-pedido`
+- `POST /api/Pagos/checkout-pro/preferencias`
+- `POST /api/Pagos/webhooks/mercado-pago`
+- `POST /api/Descargas/link`
+- `GET /api/Descargas/mis-descargas`
+- `GET /api/Bitacora`
+- `GET /api/Reportes/ventas/resumen`
 
-En desarrollo el limite puede ajustarse con `appsettings.Local.json`, user-secrets o variables de entorno, por ejemplo `RateLimiting__SensitivePublic__PermitLimit`.
+Swagger muestra el contrato completo y los requisitos de Authorization.
 
-## Bitacora administrativa
+## Estado Actual De Fases
 
-La Fase 6D agrega auditoria operativa en la tabla `Bitacora`. Los endpoints son solo Admin:
+- Fase base: estructura por capas, entidades, EF Core, SQL Server, Swagger, CORS y JWT.
+- Roles y ownership: Admin, Usuario e Invitado anonimo para endpoints publicos.
+- Galerias: eventos, fotos, comentarios, favoritos, portada, visibilidad y bulk metadata.
+- Ecommerce: carrito, paquetes, pedidos, cupones, promociones, pagos y descargas.
+- Sesiones privadas: clientes, fotos privadas, compras y descargas protegidas.
+- Sitio publico: perfil fotografa, portfolio, servicios, FAQ, testimonios y promociones.
+- Operacion admin: dashboard, ventas, agenda, presupuestos, notas, notificaciones y reportes.
+- Calidad tecnica: health checks, rate limiting, correlation id, tests, CI y bitacora/auditoria.
 
-```http
-GET /api/Bitacora
-GET /api/Bitacora/{id}
-GET /api/Bitacora/resumen
-```
+## Seguridad Basica
 
-Filtros soportados en `GET /api/Bitacora`: `desde`, `hasta`, `usuarioId`, `usuarioEmail`, `accion`, `entidadTipo`, `entidadId`, `severidad`, `correlationId`, `page` y `pageSize`.
+- No se guardan imagenes binarias en SQL Server.
+- Las fotos reales se almacenan en Cloudflare R2.
+- `StorageKey` y `MarcaAguaStorageKey` se protegen en DTOs publicos/no admin.
+- Las descargas usan URLs temporales o firmadas.
+- Los logs y bitacora no deben guardar secrets, tokens ni URLs firmadas.
+- Los endpoints publicos usan `[AllowAnonymous]` solo donde corresponde.
+- Los endpoints protegidos usan JWT y roles.
 
-Ejemplo de migracion:
+## CI
 
-```powershell
-dotnet tool run dotnet-ef database update --project .\Fotografia.Infrastructure\Fotografia.Infrastructure.csproj --startup-project .\Fotografia.Api\Fotografia.Api.csproj
-```
-
-La metadata se sanitiza antes de persistirse: no se guardan passwords, tokens, API keys, URLs firmadas ni storage keys.
+El repo incluye GitHub Actions para backend con restore, build y tests. El frontend debe tener su propio pipeline en su repositorio.
