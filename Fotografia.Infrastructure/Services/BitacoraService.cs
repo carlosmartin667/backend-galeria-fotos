@@ -166,13 +166,23 @@ public sealed class BitacoraService(
         var porSeveridad = await dbContext.Bitacora
             .AsNoTracking()
             .GroupBy(x => x.Severidad)
-            .ToDictionaryAsync(x => x.Key, x => x.Count(), cancellationToken);
+            .Select(x => new
+            {
+                Severidad = x.Key,
+                Cantidad = x.Count()
+            })
+            .ToDictionaryAsync(x => x.Severidad, x => x.Cantidad, cancellationToken);
         var porAccion = await dbContext.Bitacora
             .AsNoTracking()
             .GroupBy(x => x.Accion)
-            .OrderByDescending(x => x.Count())
+            .Select(x => new
+            {
+                Accion = x.Key,
+                Cantidad = x.Count()
+            })
+            .OrderByDescending(x => x.Cantidad)
             .Take(10)
-            .ToDictionaryAsync(x => x.Key, x => x.Count(), cancellationToken);
+            .ToDictionaryAsync(x => x.Accion, x => x.Cantidad, cancellationToken);
 
         return ApiResponse<BitacoraResumenDto>.Ok(new BitacoraResumenDto
         {

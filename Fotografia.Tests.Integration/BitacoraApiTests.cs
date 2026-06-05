@@ -42,6 +42,25 @@ public sealed class BitacoraApiTests(CustomWebApplicationFactory factory) : ICla
         document.RootElement.GetProperty("data").GetProperty("totalItems").GetInt32().Should().BeGreaterThan(0);
     }
 
+    [Fact]
+    public async Task Bitacora_admin_can_get_resumen()
+    {
+        var adminToken = await LoginAsync("admin.tests@example.com", "Admin123456");
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+
+        var response = await _client.GetAsync("/api/Bitacora/resumen");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var json = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(json);
+        var data = document.RootElement.GetProperty("data");
+        data.GetProperty("total").GetInt32().Should().BeGreaterThan(0);
+        data.GetProperty("porAccion").TryGetProperty("LoginExitoso", out var loginCount).Should().BeTrue();
+        loginCount.GetInt32().Should().BeGreaterThan(0);
+        data.GetProperty("porSeveridad").TryGetProperty("Info", out var infoCount).Should().BeTrue();
+        infoCount.GetInt32().Should().BeGreaterThan(0);
+    }
+
     private async Task<string> LoginAsync(string email, string password)
     {
         var response = await _client.PostAsJsonAsync("/api/Auth/login", new { email, password });
