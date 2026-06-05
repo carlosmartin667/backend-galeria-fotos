@@ -311,6 +311,42 @@ Explicar:
 - EF InMemory para tests rapidos;
 - siguiente paso: Testcontainers SQL Server.
 
+### 16. DevTools Internos
+
+Mostrar desde Swagger con token Admin:
+
+```http
+GET /api/dev-tools/ping
+GET /api/dev-tools/current-user
+GET /api/dev-tools/correlation-id
+GET /api/dev-tools/errors/bad-request
+GET /api/dev-tools/errors/throw
+POST /api/dev-tools/audit/test-entry
+```
+
+Explicar:
+
+- es una consola interna backend, no una pantalla Angular;
+- solo funciona en Development/Staging;
+- en Production devuelve 404 antes de Auth;
+- requiere Admin;
+- no toca pagos reales, emails reales ni descargas reales;
+- sirve para demostrar `ApiResponse`, authorization, middleware global, correlation id y bitacora.
+
+Para resiliencia frontend, mostrar payloads controlados:
+
+```http
+GET /api/dev-tools/payloads/null-data
+GET /api/dev-tools/payloads/wrong-shape
+GET /api/dev-tools/payloads/null-items
+GET /api/dev-tools/payloads/invalid-date
+GET /api/dev-tools/payloads/sensitive-metadata
+GET /api/dev-tools/payloads/empty-list
+GET /api/dev-tools/payloads/large-list
+```
+
+Explicar que los datos son falsos y permiten probar como Angular reacciona ante respuestas inesperadas sin romper contratos existentes ni usar informacion sensible.
+
 ## Preguntas Que Conviene Provocar
 
 - Como evitas que un usuario descargue fotos ajenas?

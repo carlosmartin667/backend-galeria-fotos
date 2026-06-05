@@ -22,10 +22,21 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
     private const string TestIssuer = "Fotografia.Api.Tests";
     private const string TestAudience = "Fotografia.Angular.Tests";
     private const string TestSigningKey = "tests-local-signing-key-with-more-than-32-chars";
+    private readonly string _environment;
+
+    public CustomWebApplicationFactory()
+        : this("Development")
+    {
+    }
+
+    internal CustomWebApplicationFactory(string environment)
+    {
+        _environment = environment;
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Development");
+        builder.UseEnvironment(_environment);
 
         builder.ConfigureAppConfiguration((_, configuration) =>
         {

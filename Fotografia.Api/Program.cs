@@ -147,6 +147,18 @@ app.UseExceptionHandler(exceptionApp =>
     });
 });
 
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api/dev-tools")
+        && !IsDevToolsEnvironment(app.Environment))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    await next(context);
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -210,6 +222,11 @@ static string? GetCorrelationId(HttpContext context)
     return context.Items.TryGetValue(CorrelationIdMiddleware.ItemName, out var value)
         ? value as string
         : null;
+}
+
+static bool IsDevToolsEnvironment(IHostEnvironment environment)
+{
+    return environment.IsDevelopment() || environment.IsStaging();
 }
 
 static void ApplyLocalSettingsFile(IConfiguration configuration, params string[] basePaths)

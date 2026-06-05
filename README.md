@@ -202,6 +202,55 @@ GET /health/ready
 - `/health/ready`: readiness con verificacion de base de datos.
 - Ningun health check expone secretos.
 
+## DevTools Internos
+
+El backend incluye endpoints internos de diagnostico para entrevistas, demo tecnica y pruebas de resiliencia del frontend. No son una UI y no reemplazan Swagger; son una consola backend controlada.
+
+Reglas:
+
+- disponibles solo en `Development` y `Staging`;
+- nunca disponibles en `Production`;
+- en `Production` responden `404` antes de autenticar;
+- requieren JWT con rol `Admin`;
+- no llaman pagos reales;
+- no mandan emails reales;
+- no generan descargas reales;
+- no usan datos reales sensibles;
+- no exponen tokens reales, secrets, storage keys reales ni URLs firmadas reales.
+
+Endpoints principales:
+
+```http
+GET /api/dev-tools/ping
+GET /api/dev-tools/current-user
+GET /api/dev-tools/correlation-id
+GET /api/dev-tools/errors/bad-request
+GET /api/dev-tools/errors/unauthorized
+GET /api/dev-tools/errors/forbidden
+GET /api/dev-tools/errors/not-found
+GET /api/dev-tools/errors/conflict
+GET /api/dev-tools/errors/external-dependency
+GET /api/dev-tools/errors/internal-controlled
+GET /api/dev-tools/errors/throw
+POST /api/dev-tools/audit/test-entry
+GET /api/dev-tools/rate-limit/probe
+```
+
+Payloads para probar resiliencia de Angular:
+
+```http
+GET /api/dev-tools/payloads/null-data
+GET /api/dev-tools/payloads/missing-fields
+GET /api/dev-tools/payloads/wrong-shape
+GET /api/dev-tools/payloads/null-items
+GET /api/dev-tools/payloads/invalid-date
+GET /api/dev-tools/payloads/sensitive-metadata
+GET /api/dev-tools/payloads/empty-list
+GET /api/dev-tools/payloads/large-list
+```
+
+Estos payloads sirven para probar `data = null`, `items = null`, campos faltantes, shape inesperado, fechas invalidas, metadata sensible falsa, listas vacias y listas grandes.
+
 ## Endpoints Principales
 
 - `POST /api/Auth/login`
