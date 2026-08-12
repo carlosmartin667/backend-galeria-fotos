@@ -52,7 +52,7 @@ public sealed class DevToolsController(
             currentUser.IsAuthenticated,
             currentUser.UserId,
             currentUser.Email,
-            Rol = currentUser.Rol,
+            currentUser.Rol,
             currentUser.IsAdmin,
             currentUser.IsUsuario,
             currentUser.IsInvitado
@@ -69,7 +69,7 @@ public sealed class DevToolsController(
 
         return this.ToActionResult(ApiResponse<object>.Ok(new
         {
-            HeaderName = CorrelationIdMiddleware.HeaderName,
+            CorrelationIdMiddleware.HeaderName,
             CorrelationId = GetCorrelationId(),
             TraceId = HttpContext.TraceIdentifier
         }, "CorrelationId actual."));

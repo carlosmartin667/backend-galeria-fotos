@@ -47,7 +47,7 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ["Jwt:Audience"] = TestAudience,
                 ["Jwt:SigningKey"] = TestSigningKey,
                 ["Jwt:ExpirationMinutes"] = "60",
-                ["Cors:AllowedOrigins:0"] = "http://localhost:4200",
+                ["Cors:AllowedOrigins:0"] = "http://localhost:5173",
                 ["Database:ResetOnStartup"] = "false",
                 ["Database:SeedOnStartup"] = "false",
                 ["Database:SeedTestData"] = "false",
